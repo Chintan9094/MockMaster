@@ -1,6 +1,6 @@
-# Wireless PSI Prep - Advanced Mock Test Engine
+# MockMaster - Advanced Mock Test Engine
 
-A production-ready, real-time online mock test platform built for Wireless PSI exam preparation. Features a professional exam interface with timer, auto-save, analytics, and more.
+A production-ready, real-time online mock test platform built for exam preparation. Features a professional exam interface with timer, auto-save, analytics, and more.
 
 ## Features
 
@@ -87,8 +87,8 @@ The app will be available at:
 
 | Role | Email | Password |
 |------|-------|----------|
-| Student | student@wirelesspsi.com | student123 |
-| Admin | admin@wirelesspsi.com | admin123 |
+| Student | student@mockmaster.com | student123 |
+| Admin | admin@mockmaster.com | admin123 |
 
 ## API Endpoints
 
