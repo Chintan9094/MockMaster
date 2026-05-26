@@ -30,7 +30,6 @@ A production-ready, real-time online mock test platform built for exam preparati
 | Frontend | React 18, Vite, Tailwind CSS, Zustand, Recharts |
 | Backend | Node.js, Express.js |
 | Database | MongoDB with Mongoose |
-| Auth | JWT (JSON Web Tokens) |
 | Icons | Lucide React |
 
 ## Project Structure
@@ -83,19 +82,7 @@ The app will be available at:
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:5000
 
-### Demo Credentials
-
-| Role | Email | Password |
-|------|-------|----------|
-| Student | student@mockmaster.com | student123 |
-| Admin | admin@mockmaster.com | admin123 |
-
 ## API Endpoints
-
-### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login
-- `GET /api/auth/me` - Get current user
 
 ### Tests & Chapters
 - `GET /api/tests/chapters` - List all chapters
@@ -121,6 +108,5 @@ The app will be available at:
 - **Zustand** over Redux for simpler, faster state management with minimal boilerplate
 - **Real-time auto-save** using fire-and-forget API calls that don't block the UI
 - **Server-side randomization** ensures consistent question order per attempt
-- **JWT auth** with automatic token refresh and redirect on expiry
 - **Mongoose indexes** on frequently queried fields for optimal database performance
 - **Rate limiting** and Helmet for production security
