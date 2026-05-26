@@ -72,8 +72,7 @@ const testAttemptSchema = new mongoose.Schema({
     unanswered: { type: Number, default: 0 },
     percentage: { type: Number, default: 0 },
     marksObtained: { type: Number, default: 0 },
-    totalMarks: { type: Number, default: 0 },
-    negativeMarks: { type: Number, default: 0 }
+    totalMarks: { type: Number, default: 0 }
   },
   topicAnalysis: {
     type: Map,

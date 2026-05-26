@@ -281,6 +281,12 @@ export default function Dashboard() {
           <div className="card p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-sm text-gray-900">Recent Tests</h3>
+              <Link
+                to="/history"
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors"
+              >
+                See All <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
             <div className="space-y-2">
               {overall?.recentAttempts?.slice(0, 6).map((a) => (

@@ -8,6 +8,7 @@ import ExamPage from './pages/ExamPage';
 import ResultPage from './pages/ResultPage';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
+import TestHistory from './pages/TestHistory';
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="chapters" element={<Chapters />} />
           <Route path="chapters/:chapterId" element={<ChapterDetail />} />
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="history" element={<TestHistory />} />
           <Route path="admin" element={<Admin />} />
         </Route>
         <Route path="/exam/:testId" element={<ExamPage />} />

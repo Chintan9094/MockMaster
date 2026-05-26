@@ -95,13 +95,12 @@ export default function ResultPage() {
           initial="hidden"
           animate="visible"
           variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.08 } } }}
-          className="grid grid-cols-5 gap-3 mb-8"
+          className="grid grid-cols-4 gap-3 mb-8"
         >
           {[
             { icon: CheckCircle2, value: score.correct, label: 'Correct', color: 'text-emerald-500', bg: 'bg-emerald-50' },
             { icon: XCircle, value: score.incorrect, label: 'Wrong', color: 'text-red-500', bg: 'bg-red-50' },
             { icon: MinusCircle, value: score.unanswered, label: 'Skipped', color: 'text-gray-400', bg: 'bg-gray-50' },
-            { icon: Target, value: `-${score.negativeMarks.toFixed(1)}`, label: 'Penalty', color: 'text-amber-500', bg: 'bg-amber-50' },
             { icon: MonitorX, value: tabSwitchCount || 0, label: 'Tab Switches', color: tabSwitchCount > 0 ? 'text-red-500' : 'text-emerald-500', bg: tabSwitchCount > 0 ? 'bg-red-50' : 'bg-emerald-50' },
           ].map((s, i) => (
             <motion.div 

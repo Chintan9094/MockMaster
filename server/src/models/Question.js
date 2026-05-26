@@ -36,10 +36,6 @@ const questionSchema = new mongoose.Schema({
     type: Number,
     default: 1
   },
-  negativeMarks: {
-    type: Number,
-    default: 0.25
-  },
   isActive: {
     type: Boolean,
     default: true

@@ -5,7 +5,8 @@ import api from '../lib/api';
 import toast from 'react-hot-toast';
 import {
   Plus, Trash2, BookOpen, FileText, HelpCircle, Loader2,
-  ChevronDown, ChevronRight, Save, X, Layers, ArrowLeft, AlertTriangle
+  ChevronDown, ChevronRight, Save, X, Layers, ArrowLeft, AlertTriangle,
+  Upload, FileJson, CheckCircle2
 } from 'lucide-react';
 
 function ConfirmModal({ open, onClose, onConfirm, title, message, loading }) {
@@ -129,6 +130,91 @@ export default function Admin() {
   };
 
   const [savedCount, setSavedCount] = useState(0);
+  const [jsonUploading, setJsonUploading] = useState(false);
+  const [jsonResult, setJsonResult] = useState(null);
+
+  const handleJsonUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    if (!questionForm.chapterId || !questionForm.topicId) {
+      return toast.error('Select chapter & topic first');
+    }
+
+    if (!file.name.endsWith('.json')) {
+      return toast.error('Please upload a .json file');
+    }
+
+    setJsonUploading(true);
+    setJsonResult(null);
+
+    try {
+      const text = await file.text();
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        setJsonUploading(false);
+        return toast.error('Invalid JSON file');
+      }
+
+      const questions = Array.isArray(parsed) ? parsed : parsed.questions;
+      if (!Array.isArray(questions) || questions.length === 0) {
+        setJsonUploading(false);
+        return toast.error('JSON must contain an array of questions');
+      }
+
+      const formatted = questions.map(q => {
+        const opts = q.options
+          ? q.options
+          : [
+              { id: 'A', text: q.optionA || q.option_a || '' },
+              { id: 'B', text: q.optionB || q.option_b || '' },
+              { id: 'C', text: q.optionC || q.option_c || '' },
+              { id: 'D', text: q.optionD || q.option_d || '' }
+            ];
+        return {
+          questionText: q.questionText || q.question_text || q.question || '',
+          options: opts,
+          correctAnswer: q.correctAnswer || q.correct_answer || q.answer || 'A',
+          explanation: q.explanation || '',
+          difficulty: q.difficulty || 'medium'
+        };
+      });
+
+      const invalid = formatted.filter(q => !q.questionText || q.options.some(o => !o.text));
+      if (invalid.length > 0) {
+        setJsonUploading(false);
+        return toast.error(`${invalid.length} question(s) have missing text or options`);
+      }
+
+      await api.post('/admin/questions', {
+        topicId: questionForm.topicId,
+        chapterId: questionForm.chapterId,
+        questions: formatted
+      });
+
+      const topicObj = chapters
+        .flatMap(c => c.topics || [])
+        .find(t => t._id === questionForm.topicId);
+      await api.post('/admin/tests', {
+        title: topicObj?.title || 'Untitled',
+        topicId: questionForm.topicId,
+        chapterId: questionForm.chapterId,
+        duration: topicObj?.duration || 10
+      });
+
+      setJsonResult({ success: true, count: formatted.length });
+      setSavedCount(prev => prev + formatted.length);
+      toast.success(`${formatted.length} questions uploaded!`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to upload questions');
+      setJsonResult({ success: false });
+    } finally {
+      setJsonUploading(false);
+    }
+  };
 
   const handleAddQuestion = async (e) => {
     e.preventDefault();
@@ -349,38 +435,45 @@ export default function Admin() {
             <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Plus className="w-4 h-4 text-indigo-600" /> Add New Topic
             </h3>
-            <div className="grid sm:grid-cols-[1fr_1fr_100px_auto] gap-3">
-              <select
-                value={topicForm.chapterId}
-                onChange={(e) => setTopicForm({ ...topicForm, chapterId: e.target.value })}
-                className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none bg-white"
-              >
-                <option value="">Select Chapter</option>
-                {chapters.map(ch => (
-                  <option key={ch._id} value={ch._id}>{ch.number}. {ch.title}</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                placeholder="Topic title (e.g., DFT & FFT)"
-                value={topicForm.title}
-                onChange={(e) => setTopicForm({ ...topicForm, title: e.target.value })}
-                className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-              />
-              <input
-                type="number"
-                placeholder="Min"
-                min="1"
-                value={topicForm.duration}
-                onChange={(e) => setTopicForm({ ...topicForm, duration: e.target.value })}
-                className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-center"
-                title="Test duration in minutes"
-              />
+            <div className="grid sm:grid-cols-[1fr_1fr_120px_auto] gap-3 items-end">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Chapter *</label>
+                <select
+                  value={topicForm.chapterId}
+                  onChange={(e) => setTopicForm({ ...topicForm, chapterId: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none bg-white"
+                >
+                  <option value="">Select Chapter</option>
+                  {chapters.map(ch => (
+                    <option key={ch._id} value={ch._id}>{ch.number}. {ch.title}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Topic Title *</label>
+                <input
+                  type="text"
+                  placeholder="e.g., DFT & FFT"
+                  value={topicForm.title}
+                  onChange={(e) => setTopicForm({ ...topicForm, title: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Timer (min)</label>
+                <input
+                  type="number"
+                  placeholder="10"
+                  min="1"
+                  value={topicForm.duration}
+                  onChange={(e) => setTopicForm({ ...topicForm, duration: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-center"
+                />
+              </div>
               <button type="submit" className="btn-primary !py-2.5 !px-5 !text-[13px] !rounded-xl">
                 <Plus className="w-4 h-4" /> Add
               </button>
             </div>
-            <p className="text-[11px] text-gray-400 mt-2">Duration is in minutes (default: 10 min)</p>
           </form>
 
           <div className="card p-6">
@@ -453,6 +546,65 @@ export default function Admin() {
               </select>
             </div>
           </div>
+
+          {/* JSON Upload - shows when topic selected */}
+          {questionForm.topicId && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <FileJson className="w-4 h-4 text-indigo-600" /> Upload from JSON File
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">Bulk upload questions from a JSON file. Accepts an array of question objects.</p>
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <label className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium cursor-pointer transition-colors ${
+                  jsonUploading
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                }`}>
+                  {jsonUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {jsonUploading ? 'Uploading...' : 'Choose JSON File'}
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleJsonUpload}
+                    disabled={jsonUploading}
+                    className="hidden"
+                  />
+                </label>
+
+                {jsonResult?.success && (
+                  <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                    <CheckCircle2 className="w-4 h-4" /> {jsonResult.count} questions uploaded
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-4 p-3 bg-gray-50 rounded-xl">
+                <p className="text-xs font-medium text-gray-500 mb-2">Expected JSON format:</p>
+                <pre className="text-[11px] text-gray-600 overflow-x-auto leading-relaxed">{`[
+  {
+    "questionText": "What is ...?",
+    "optionA": "Answer 1",
+    "optionB": "Answer 2",
+    "optionC": "Answer 3",
+    "optionD": "Answer 4",
+    "correctAnswer": "A",
+    "explanation": "Because ...",
+    "difficulty": "easy"
+  }
+]`}</pre>
+              </div>
+            </div>
+          )}
+
+          {/* Divider */}
+          {questionForm.topicId && (
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-gray-200" />
+              <span className="text-xs font-medium text-gray-400 uppercase">or add manually</span>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+          )}
 
           {/* Question Form - shows when topic selected */}
           {questionForm.topicId && (

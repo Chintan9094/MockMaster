@@ -306,8 +306,7 @@ async function seed() {
           topic: topic._id,
           chapter: chapter._id,
           difficulty: idx < 4 ? 'easy' : idx < 7 ? 'medium' : 'hard',
-          marks: 1,
-          negativeMarks: 0.25
+          marks: 1
         }));
 
         const questions = await Question.insertMany(questionsToInsert);
@@ -320,8 +319,6 @@ async function seed() {
           duration: 10,
           totalMarks: 10,
           totalQuestions: 10,
-          negativeMarking: true,
-          negativeMarkValue: 0.25,
           randomizeQuestions: true
         });
 

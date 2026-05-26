@@ -161,14 +161,14 @@ exports.submitTest = asyncHandler(async (req, res) => {
     status: 'in_progress'
   }).populate({
     path: 'questionOrder',
-    select: 'correctAnswer marks negativeMarks topic'
+    select: 'correctAnswer marks topic'
   });
 
   if (!attempt) throw new AppError('Active attempt not found', 404);
 
   const test = await Test.findById(attempt.test);
   let correct = 0, incorrect = 0, unanswered = 0;
-  let marksObtained = 0, negativeMarks = 0;
+  let marksObtained = 0;
   const topicAnalysis = {};
 
   attempt.answers.forEach((answer, idx) => {
@@ -192,10 +192,6 @@ exports.submitTest = asyncHandler(async (req, res) => {
       answer.isCorrect = true;
     } else {
       incorrect++;
-      if (test.negativeMarking) {
-        negativeMarks += question.negativeMarks;
-        marksObtained -= question.negativeMarks;
-      }
       topicAnalysis[topicId].incorrect++;
       answer.isCorrect = false;
     }
@@ -212,9 +208,8 @@ exports.submitTest = asyncHandler(async (req, res) => {
     incorrect,
     unanswered,
     percentage: Math.round((correct / attempt.answers.length) * 100),
-    marksObtained: Math.max(0, marksObtained),
-    totalMarks: test.totalMarks,
-    negativeMarks
+    marksObtained,
+    totalMarks: test.totalMarks
   };
 
   attempt.topicAnalysis = topicAnalysis;
@@ -243,7 +238,7 @@ exports.getAttemptResult = asyncHandler(async (req, res) => {
     })
     .populate({
       path: 'test',
-      select: 'title duration totalMarks totalQuestions negativeMarking negativeMarkValue'
+      select: 'title duration totalMarks totalQuestions'
     });
 
   if (!attempt) throw new AppError('Attempt not found', 404);

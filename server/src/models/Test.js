@@ -35,14 +35,6 @@ const testSchema = new mongoose.Schema({
     required: true,
     default: 20
   },
-  negativeMarking: {
-    type: Boolean,
-    default: true
-  },
-  negativeMarkValue: {
-    type: Number,
-    default: 0.25
-  },
   randomizeQuestions: {
     type: Boolean,
     default: true

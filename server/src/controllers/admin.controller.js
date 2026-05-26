@@ -40,8 +40,7 @@ exports.addQuestions = asyncHandler(async (req, res) => {
     topic: topicId,
     chapter: chapterId,
     difficulty: q.difficulty || 'medium',
-    marks: q.marks || 1,
-    negativeMarks: q.negativeMarks || 0.25
+    marks: q.marks || 1
   }));
 
   const inserted = await Question.insertMany(questionsToInsert);
@@ -53,7 +52,7 @@ exports.addQuestions = asyncHandler(async (req, res) => {
 });
 
 exports.createTest = asyncHandler(async (req, res) => {
-  const { title, topicId, chapterId, duration, negativeMarking } = req.body;
+  const { title, topicId, chapterId, duration } = req.body;
   if (!title || !topicId || !chapterId) {
     throw new AppError('title, topicId, and chapterId are required', 400);
   }
@@ -78,8 +77,6 @@ exports.createTest = asyncHandler(async (req, res) => {
       duration: duration || 10,
       totalMarks: questions.length,
       totalQuestions: questions.length,
-      negativeMarking: negativeMarking !== false,
-      negativeMarkValue: 0.25,
       randomizeQuestions: true
     });
   }

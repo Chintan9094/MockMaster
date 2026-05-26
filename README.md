@@ -15,7 +15,6 @@ A production-ready, real-time online mock test platform built for exam preparati
 - **Fullscreen Exam Mode** - Immersive distraction-free exam experience
 - **Tab Switch Detection** - Monitors and records tab/window switches
 - **Randomized Questions** - Questions are shuffled for each attempt
-- **Negative Marking** - Configurable penalty for wrong answers
 - **Topic-wise Scoring** - Breakdown of performance by topic
 - **Performance Analytics** - Charts, trends, and progress tracking
 - **Weak Topic Analysis** - Identifies areas needing improvement
