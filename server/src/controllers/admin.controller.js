@@ -4,6 +4,48 @@ const Question = require('../models/Question');
 const Test = require('../models/Test');
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
 
+async function syncTestForTopic(topicId, chapterId, title, duration) {
+  const questions = await Question.find({ topic: topicId, isActive: true });
+  const test = await Test.findOne({ topic: topicId });
+
+  if (!questions.length) {
+    if (test) await test.deleteOne();
+    return null;
+  }
+
+  const payload = {
+    title: title || test?.title || 'Untitled',
+    questions: questions.map((q) => q._id),
+    totalMarks: questions.length,
+    totalQuestions: questions.length,
+    duration: duration ?? test?.duration ?? 10
+  };
+
+  if (test) {
+    Object.assign(test, payload);
+    await test.save();
+    return test;
+  }
+
+  return Test.create({
+    ...payload,
+    topic: topicId,
+    chapter: chapterId,
+    randomizeQuestions: true
+  });
+}
+
+function formatQuestionPayload(q) {
+  return {
+    questionText: q.questionText,
+    options: q.options,
+    correctAnswer: q.correctAnswer,
+    explanation: q.explanation || '',
+    difficulty: q.difficulty || 'medium',
+    marks: q.marks || 1
+  };
+}
+
 exports.addChapter = asyncHandler(async (req, res) => {
   const { number, title } = req.body;
   if (!number || !title) throw new AppError('Number and title are required', 400);
@@ -60,28 +102,62 @@ exports.createTest = asyncHandler(async (req, res) => {
   const questions = await Question.find({ topic: topicId, isActive: true });
   if (!questions.length) throw new AppError('No questions found for this topic', 400);
 
-  let test = await Test.findOne({ topic: topicId });
-  if (test) {
-    test.title = title;
-    test.questions = questions.map(q => q._id);
-    test.totalMarks = questions.length;
-    test.totalQuestions = questions.length;
-    test.duration = duration || test.duration;
-    await test.save();
-  } else {
-    test = await Test.create({
-      title,
-      topic: topicId,
-      chapter: chapterId,
-      questions: questions.map(q => q._id),
-      duration: duration || 10,
-      totalMarks: questions.length,
-      totalQuestions: questions.length,
-      randomizeQuestions: true
-    });
+  const test = await syncTestForTopic(topicId, chapterId, title, duration);
+  res.status(201).json({ success: true, data: test });
+});
+
+exports.getQuestionsByTopic = asyncHandler(async (req, res) => {
+  const { topicId } = req.query;
+  if (!topicId) throw new AppError('topicId query parameter is required', 400);
+
+  const questions = await Question.find({ topic: topicId, isActive: true })
+    .sort({ createdAt: 1 })
+    .select('questionText options correctAnswer explanation difficulty marks createdAt');
+
+  res.json({ success: true, data: questions });
+});
+
+exports.updateQuestion = asyncHandler(async (req, res) => {
+  const question = await Question.findById(req.params.id);
+  if (!question) throw new AppError('Question not found', 404);
+
+  const { questionText, options, correctAnswer, explanation, difficulty, marks } = req.body;
+  if (!questionText || !options?.length || !correctAnswer) {
+    throw new AppError('questionText, options, and correctAnswer are required', 400);
   }
 
-  res.status(201).json({ success: true, data: test });
+  Object.assign(question, formatQuestionPayload({
+    questionText,
+    options,
+    correctAnswer,
+    explanation,
+    difficulty,
+    marks
+  }));
+  await question.save();
+
+  const topic = await Topic.findById(question.topic);
+  await syncTestForTopic(
+    question.topic,
+    question.chapter,
+    topic?.title,
+    topic?.duration
+  );
+
+  res.json({ success: true, data: question });
+});
+
+exports.deleteQuestion = asyncHandler(async (req, res) => {
+  const question = await Question.findById(req.params.id);
+  if (!question) throw new AppError('Question not found', 404);
+
+  const { topic, chapter } = question;
+  await question.deleteOne();
+
+  const topicDoc = await Topic.findById(topic);
+  await syncTestForTopic(topic, chapter, topicDoc?.title, topicDoc?.duration);
+
+  res.json({ success: true, message: 'Question deleted' });
 });
 
 exports.deleteChapter = asyncHandler(async (req, res) => {

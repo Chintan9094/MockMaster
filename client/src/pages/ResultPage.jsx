@@ -4,9 +4,10 @@ import { motion } from 'framer-motion';
 import api from '../lib/api';
 import {
   Trophy, Target, XCircle, MinusCircle, ArrowLeft,
-  CheckCircle2, RotateCcw, Loader2, ChevronDown, Clock, Sparkles, MonitorX
+  CheckCircle2, RotateCcw, Loader2, ChevronDown, Clock, Sparkles, MonitorX, Bookmark
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useBookmarkStore } from '../store/bookmarkStore';
 
 export default function ResultPage() {
   const { attemptId } = useParams();
@@ -15,6 +16,7 @@ export default function ResultPage() {
   const [loading, setLoading] = useState(true);
   const [expandedQ, setExpandedQ] = useState({});
   const [showAll, setShowAll] = useState(false);
+  const { toggleBookmark, isBookmarked } = useBookmarkStore();
 
   useEffect(() => {
     api.get(`/attempts/${attemptId}/result`)
@@ -133,6 +135,9 @@ export default function ResultPage() {
           <Link to="/dashboard" className="btn-outline !rounded-xl">
             View Progress
           </Link>
+          <Link to="/bookmarks" className="btn-outline !rounded-xl">
+            <Bookmark className="w-4 h-4" /> My Bookmarks
+          </Link>
         </motion.div>
 
         {/* Answer Review */}
@@ -179,6 +184,28 @@ export default function ResultPage() {
                           {question.questionText}
                         </p>
                       </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const added = toggleBookmark({
+                            questionId: question._id,
+                            questionText: question.questionText,
+                            options: question.options,
+                            correctAnswer: question.correctAnswer,
+                            explanation: question.explanation || '',
+                            difficulty: question.difficulty
+                          });
+                          toast.success(added ? 'Question bookmarked' : 'Bookmark removed');
+                        }}
+                        className={`p-1.5 rounded-lg flex-shrink-0 transition-colors ${
+                          isBookmarked(question._id)
+                            ? 'text-indigo-600 bg-indigo-50'
+                            : 'text-gray-300 hover:text-indigo-500 hover:bg-indigo-50'
+                        }`}
+                        title={isBookmarked(question._id) ? 'Remove bookmark' : 'Bookmark for revision'}
+                      >
+                        <Bookmark className="w-4 h-4" fill={isBookmarked(question._id) ? 'currentColor' : 'none'} />
+                      </button>
                       <ChevronDown className={`w-4 h-4 text-gray-300 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                     </div>
                   </div>

@@ -267,6 +267,28 @@ const chaptersData = [
   }
 ];
 
+const bulkPracticeQuestions = Array.from({ length: 100 }, (_, i) => {
+  const n = i + 1;
+  const correct = n + 1;
+  return {
+    q: `Q${n}: What is ${n} + 1?`,
+    opts: [`${n}`, `${correct}`, `${correct + 1}`, `${correct + 2}`],
+    ans: 'B',
+    exp: `${n} + 1 = ${correct}.`
+  };
+});
+
+chaptersData.push({
+  number: 6,
+  title: 'Practice Tests',
+  topics: [
+    {
+      title: '100 Question Scroll Test',
+      questions: bulkPracticeQuestions
+    }
+  ]
+});
+
 async function seed() {
   try {
     await mongoose.connect(MONGODB_URI);
@@ -311,14 +333,15 @@ async function seed() {
 
         const questions = await Question.insertMany(questionsToInsert);
 
+        const qCount = questions.length;
         await Test.create({
           title: topicData.title,
           topic: topic._id,
           chapter: chapter._id,
           questions: questions.map(q => q._id),
-          duration: 10,
-          totalMarks: 10,
-          totalQuestions: 10,
+          duration: qCount,
+          totalMarks: qCount,
+          totalQuestions: qCount,
           randomizeQuestions: true
         });
 
@@ -333,7 +356,7 @@ async function seed() {
     console.log(`   ${chaptersData.length} Chapters`);
     console.log(`   ${chaptersData.reduce((s, c) => s + c.topics.length, 0)} Topics`);
     console.log(`   ${chaptersData.reduce((s, c) => s + c.topics.reduce((t, tp) => t + tp.questions.length, 0), 0)} Questions`);
-    console.log('\nTest duration: 10 min / 10 questions each (quick for testing)');
+    console.log('\nIncludes "100 Question Scroll Test" under Practice Tests chapter');
     process.exit(0);
   } catch (err) {
     console.error('Seeding failed:', err);

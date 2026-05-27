@@ -6,8 +6,28 @@ import api from '../lib/api';
 import toast from 'react-hot-toast';
 import {
   ChevronLeft, ChevronRight, Flag, CheckCircle, Clock, AlertTriangle,
-  Maximize, Minimize, BookOpen, Loader2, X, RotateCcw, Grid3X3
+  Maximize, Minimize, BookOpen, Loader2, X, RotateCcw, Grid3X3, Bookmark, Keyboard
 } from 'lucide-react';
+import { useBookmarkStore } from '../store/bookmarkStore';
+import QuestionPalette from '../components/QuestionPalette';
+
+const OPTION_KEY_MAP = { '1': 'A', '2': 'B', '3': 'C', '4': 'D', a: 'A', b: 'B', c: 'C', d: 'D' };
+
+const SHORTCUTS = [
+  { keys: ['1', '2', '3', '4'], label: 'Select option A, B, C, or D' },
+  { keys: ['←', '→'], label: 'Previous / next question' },
+  { keys: ['M'], label: 'Mark for review' },
+  { keys: ['?'], label: 'Show / hide shortcuts' },
+  { keys: ['Esc'], label: 'Close panels' },
+];
+
+function Kbd({ children }) {
+  return (
+    <kbd className="inline-flex min-w-[1.25rem] items-center justify-center px-1.5 py-0.5 text-[10px] font-mono font-semibold text-gray-600 bg-gray-100 border border-gray-200 rounded shadow-[0_1px_0_rgba(0,0,0,0.06)]">
+      {children}
+    </kbd>
+  );
+}
 
 export default function ExamPage() {
   const { testId } = useParams();
@@ -16,6 +36,7 @@ export default function ExamPage() {
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
   const [mobilePalette, setMobilePalette] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const timerRef = useRef(null);
 
   const {
@@ -25,6 +46,7 @@ export default function ExamPage() {
     clearAnswer, decrementTime, incrementTabSwitch, setFullscreen,
     submitExam, resetExam
   } = useExamStore();
+  const { toggleBookmark, isBookmarked } = useBookmarkStore();
 
   const loadingRef = useRef(false);
   useEffect(() => {
@@ -85,6 +107,68 @@ export default function ExamPage() {
     };
   }, [attempt]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    if (!attempt || loading) return;
+
+    const handleKeyDown = (e) => {
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+
+      if (showConfirmSubmit || showLeaveWarning) return;
+
+      if (e.key === 'Escape') {
+        if (showShortcuts) {
+          e.preventDefault();
+          setShowShortcuts(false);
+        } else if (mobilePalette) {
+          e.preventDefault();
+          setMobilePalette(false);
+        }
+        return;
+      }
+
+      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+        e.preventDefault();
+        setShowShortcuts((v) => !v);
+        return;
+      }
+
+      if (showShortcuts || mobilePalette) return;
+
+      const optionId = OPTION_KEY_MAP[e.key];
+      if (optionId) {
+        e.preventDefault();
+        selectAnswer(optionId);
+        return;
+      }
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setCurrentIndex(Math.max(0, currentIndex - 1));
+        return;
+      }
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1));
+        return;
+      }
+
+      if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        toggleMarkForReview();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    attempt, loading, currentIndex, questions.length,
+    showConfirmSubmit, showLeaveWarning, mobilePalette, showShortcuts,
+    selectAnswer, setCurrentIndex, toggleMarkForReview
+  ]);
+
   const loadExam = async () => {
     try {
       const { data } = await api.post(`/attempts/start/${testId}`);
@@ -125,16 +209,6 @@ export default function ExamPage() {
     return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   };
 
-  const getStatus = (idx) => {
-    const a = answers[idx];
-    if (idx === currentIndex) return 'current';
-    if (!a) return 'unvisited';
-    if (a.markedForReview && a.selectedAnswer) return 'marked-answered';
-    if (a.markedForReview) return 'marked';
-    if (a.selectedAnswer) return 'answered';
-    return 'unvisited';
-  };
-
   const statusStyles = {
     current: 'border-2 border-indigo-600 bg-white text-indigo-700 font-bold shadow-sm',
     answered: 'bg-emerald-500 text-white font-semibold border-2 border-emerald-500',
@@ -169,8 +243,17 @@ export default function ExamPage() {
           <BookOpen className="w-4 h-4 text-white/80" />
           <span className="font-bold text-white text-sm">MockMaster</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
+            type="button"
+            onClick={() => setShowShortcuts(true)}
+            className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            title="Keyboard shortcuts (?)"
+          >
+            <Keyboard className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
             onClick={toggleFullscreen}
             className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           >
@@ -181,9 +264,12 @@ export default function ExamPage() {
 
       {/* Sub Header - Question info + Timer + Submit */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <span className="text-xs font-bold text-indigo-600 uppercase tracking-wide">
             Question {currentIndex + 1} of {questions.length}
+          </span>
+          <span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
+            {questions.length} total
           </span>
           {currentQuestion?.difficulty && (
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wide ${
@@ -229,95 +315,134 @@ export default function ExamPage() {
       </div>
 
       {/* Main Body */}
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Question Area */}
-        <div className="flex-1 overflow-y-auto bg-[#f5f6fa]">
-          <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
-            {/* Question Card */}
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentIndex}
-                initial={{ opacity: 0, x: 15 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -15 }}
-                transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
-              >
-                {/* Question Text */}
-                <div className="px-6 sm:px-8 pt-6 pb-4">
-                  <h2 className="text-[15px] sm:text-[17px] font-medium text-gray-900 leading-relaxed">
-                    {currentQuestion?.questionText}
-                  </h2>
-                </div>
+        <div className="flex-1 flex flex-col min-h-0 bg-[#f5f6fa]">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentIndex}
+                  initial={{ opacity: 0, x: 15 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -15 }}
+                  transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+                  className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+                >
+                  <div className="px-5 sm:px-6 pt-4 pb-3">
+                    <h2 className="text-[15px] sm:text-[16px] font-medium text-gray-900 leading-relaxed">
+                      {currentQuestion?.questionText}
+                    </h2>
+                  </div>
 
-                {/* Options */}
-                <div className="px-4 sm:px-6 pb-6">
-                  {currentQuestion?.options?.map((option) => {
-                    const isSelected = currentAnswer?.selectedAnswer === option.id;
-                    return (
+                  <div className="px-3 sm:px-4 pb-2">
+                    <p className="text-[10px] text-gray-400 mb-2 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span><Kbd>1</Kbd>–<Kbd>4</Kbd> select</span>
+                      <span><Kbd>←</Kbd><Kbd>→</Kbd> nav</span>
+                      <span><Kbd>M</Kbd> review</span>
                       <button
-                        key={option.id}
-                        onClick={() => selectAnswer(option.id)}
-                        className={`w-full text-left px-5 py-4 border-b border-gray-100 last:border-b-0 flex items-center gap-4 transition-all duration-150 hover:bg-indigo-50/40 ${
-                          isSelected ? 'bg-indigo-50' : ''
-                        }`}
+                        type="button"
+                        onClick={() => setShowShortcuts(true)}
+                        className="text-indigo-500 hover:text-indigo-700 font-medium"
                       >
-                        <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                          isSelected
-                            ? 'border-indigo-600 bg-indigo-600'
-                            : 'border-gray-300'
-                        }`}>
-                          {isSelected && (
-                            <motion.span
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              className="w-2 h-2 bg-white rounded-full"
-                            />
-                          )}
-                        </span>
-                        <span className={`text-[14px] sm:text-[15px] leading-relaxed ${
-                          isSelected ? 'text-indigo-900 font-medium' : 'text-gray-700'
-                        }`}>
-                          {option.text}
-                        </span>
+                        Shortcuts
                       </button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            </AnimatePresence>
+                    </p>
+                    {currentQuestion?.options?.map((option) => {
+                      const isSelected = currentAnswer?.selectedAnswer === option.id;
+                      const hotkey = { A: '1', B: '2', C: '3', D: '4' }[option.id];
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => selectAnswer(option.id)}
+                          className={`w-full text-left px-4 py-3 border-b border-gray-100 last:border-b-0 flex items-center gap-3 transition-all duration-150 hover:bg-indigo-50/40 ${
+                            isSelected ? 'bg-indigo-50' : ''
+                          }`}
+                        >
+                          <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                            isSelected
+                              ? 'border-indigo-600 bg-indigo-600'
+                              : 'border-gray-300'
+                          }`}>
+                            {isSelected && (
+                              <motion.span
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                className="w-1.5 h-1.5 bg-white rounded-full"
+                              />
+                            )}
+                          </span>
+                          <span className={`flex-1 text-[14px] leading-snug ${
+                            isSelected ? 'text-indigo-900 font-medium' : 'text-gray-700'
+                          }`}>
+                            <span className="font-semibold text-indigo-600 mr-1.5">{option.id}.</span>
+                            {option.text}
+                          </span>
+                          {hotkey && <Kbd>{hotkey}</Kbd>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
 
-            {/* Bottom Navigation */}
-            <div className="flex items-center justify-between mt-6">
+          {/* Bottom bar — always visible */}
+          <div className="shrink-0 border-t border-gray-200 bg-white px-4 sm:px-6 py-3 pb-safe lg:pb-3">
+            <div className="max-w-3xl mx-auto flex items-center justify-between gap-2 pr-14 lg:pr-0">
               <motion.button
                 whileHover={{ x: -2 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
                 disabled={currentIndex === 0}
-                className="flex items-center gap-1.5 px-5 py-2.5 text-gray-600 text-[13px] font-medium hover:bg-white hover:shadow-sm rounded-lg border border-transparent hover:border-gray-200 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:border-transparent disabled:hover:shadow-none"
+                title="Previous (←)"
+                className="flex items-center gap-1 px-4 py-2 text-gray-600 text-[13px] font-medium hover:bg-gray-50 rounded-lg border border-gray-200 transition-all disabled:opacity-30"
               >
                 <ChevronLeft className="w-4 h-4" /> Prev
               </motion.button>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={clearAnswer}
                   disabled={!currentAnswer?.selectedAnswer}
-                  className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-30"
+                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-30"
                   title="Clear selection"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
                 <button
                   onClick={toggleMarkForReview}
-                  className={`p-2.5 rounded-lg transition-all ${
+                  className={`p-2 rounded-lg transition-all ${
                     currentAnswer?.markedForReview
                       ? 'text-amber-600 bg-amber-50'
                       : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'
                   }`}
-                  title="Mark for review"
+                  title="Mark for review (M)"
                 >
                   <Flag className="w-4 h-4" fill={currentAnswer?.markedForReview ? 'currentColor' : 'none'} />
+                </button>
+                <button
+                  onClick={() => {
+                    const added = toggleBookmark({
+                      questionId: currentQuestion._id,
+                      questionText: currentQuestion.questionText,
+                      options: currentQuestion.options,
+                      correctAnswer: currentQuestion.correctAnswer,
+                      explanation: currentQuestion.explanation || '',
+                      difficulty: currentQuestion.difficulty
+                    });
+                    toast.success(added ? 'Question bookmarked' : 'Bookmark removed');
+                  }}
+                  className={`p-2 rounded-lg transition-all ${
+                    isBookmarked(currentQuestion?._id)
+                      ? 'text-indigo-600 bg-indigo-50'
+                      : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'
+                  }`}
+                  title={isBookmarked(currentQuestion?._id) ? 'Remove bookmark' : 'Bookmark for revision'}
+                >
+                  <Bookmark className="w-4 h-4" fill={isBookmarked(currentQuestion?._id) ? 'currentColor' : 'none'} />
                 </button>
               </div>
 
@@ -326,7 +451,8 @@ export default function ExamPage() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))}
                 disabled={currentIndex === questions.length - 1}
-                className="flex items-center gap-1.5 px-5 py-2.5 bg-indigo-600 text-white text-[13px] font-semibold rounded-lg hover:bg-indigo-700 transition-all disabled:opacity-30 shadow-sm"
+                title="Next (→)"
+                className="flex items-center gap-1 px-4 py-2 bg-indigo-600 text-white text-[13px] font-semibold rounded-lg hover:bg-indigo-700 transition-all disabled:opacity-30 shadow-sm"
               >
                 Next <ChevronRight className="w-4 h-4" />
               </motion.button>
@@ -335,55 +461,19 @@ export default function ExamPage() {
         </div>
 
         {/* Sidebar - Question Overview (Desktop) */}
-        <aside className="hidden lg:flex flex-col w-[280px] border-l border-gray-200 bg-white">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h4 className="text-sm font-bold text-gray-800">Question Overview</h4>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-5">
-            <div className="grid grid-cols-5 gap-2">
-              {questions.map((_, idx) => (
-                <motion.button
-                  key={idx}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setCurrentIndex(idx)}
-                  className={`w-full aspect-square rounded-md text-[12px] transition-all ${statusStyles[getStatus(idx)]}`}
-                >
-                  {idx + 1}
-                </motion.button>
-              ))}
-            </div>
-          </div>
-
-          {/* Legend */}
-          <div className="p-5 border-t border-gray-100 space-y-3">
-            <div className="grid grid-cols-1 gap-2.5 text-[12px]">
-              <div className="flex items-center gap-2.5">
-                <span className="w-5 h-5 rounded-md bg-emerald-500 border-2 border-emerald-500" />
-                <span className="text-gray-600">Answered ({answeredCount})</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span className="w-5 h-5 rounded-md bg-amber-400 border-2 border-amber-400" />
-                <span className="text-gray-600">Marked for Review ({markedCount})</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span className="w-5 h-5 rounded-md bg-gray-50 border-2 border-gray-200" />
-                <span className="text-gray-600">Not Visited ({questions.length - answeredCount})</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span className="w-5 h-5 rounded-md bg-white border-2 border-indigo-600" />
-                <span className="text-gray-600">Current</span>
-              </div>
-            </div>
-
-            {tabSwitchCount > 0 && (
-              <div className="p-3 bg-red-50 rounded-lg flex items-center gap-2 text-[11px] text-red-600 font-medium border border-red-100">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Tab switches: {tabSwitchCount}
-              </div>
-            )}
-          </div>
+        <aside className="hidden lg:flex flex-col w-[300px] min-h-0 shrink-0 border-l border-gray-200 bg-white p-4 pt-5">
+          <QuestionPalette
+            total={questions.length}
+            answers={answers}
+            currentIndex={currentIndex}
+            onSelect={setCurrentIndex}
+            statusStyles={statusStyles}
+            answeredCount={answeredCount}
+            markedCount={markedCount}
+            tabSwitchCount={tabSwitchCount}
+            onShowShortcuts={() => setShowShortcuts(true)}
+            className="flex-1 min-h-0"
+          />
         </aside>
       </div>
 
@@ -413,34 +503,90 @@ export default function ExamPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl p-5 pt-3 max-h-[70vh] overflow-y-auto shadow-2xl"
+              className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl p-5 pt-3 max-h-[70vh] flex flex-col shadow-2xl"
             >
-              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
-              <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4 shrink-0" />
+              <div className="flex items-center justify-between mb-3 shrink-0">
                 <h4 className="font-bold text-sm text-gray-900">Question Overview</h4>
-                <button onClick={() => setMobilePalette(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                <button type="button" onClick={() => setMobilePalette(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
                   <X className="w-4 h-4 text-gray-500" />
                 </button>
               </div>
-              <div className="grid grid-cols-6 gap-2.5">
-                {questions.map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => { setCurrentIndex(idx); setMobilePalette(false); }}
-                    className={`w-full aspect-square rounded-lg text-[12px] transition-all ${statusStyles[getStatus(idx)]}`}
-                  >
-                    {idx + 1}
-                  </button>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-2.5 mt-5 pt-4 border-t border-gray-100 text-[11px]">
-                <div className="flex items-center gap-2"><span className="w-4 h-4 rounded bg-emerald-500 border-2 border-emerald-500" /><span className="text-gray-600">Answered ({answeredCount})</span></div>
-                <div className="flex items-center gap-2"><span className="w-4 h-4 rounded bg-amber-400 border-2 border-amber-400" /><span className="text-gray-600">Review ({markedCount})</span></div>
-                <div className="flex items-center gap-2"><span className="w-4 h-4 rounded bg-gray-50 border-2 border-gray-200" /><span className="text-gray-600">Not Visited</span></div>
-                <div className="flex items-center gap-2"><span className="w-4 h-4 rounded bg-white border-2 border-indigo-600" /><span className="text-gray-600">Current</span></div>
-              </div>
+              <QuestionPalette
+                total={questions.length}
+                answers={answers}
+                currentIndex={currentIndex}
+                onSelect={(idx) => { setCurrentIndex(idx); setMobilePalette(false); }}
+                statusStyles={statusStyles}
+                answeredCount={answeredCount}
+                markedCount={markedCount}
+                tabSwitchCount={tabSwitchCount}
+                onShowShortcuts={() => { setMobilePalette(false); setShowShortcuts(true); }}
+                className="flex-1 min-h-0"
+              />
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Keyboard Shortcuts Modal */}
+      <AnimatePresence>
+        {showShortcuts && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[85] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowShortcuts(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+              className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+                    <Keyboard className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Keyboard Shortcuts</h3>
+                    <p className="text-xs text-gray-500">Answer faster during the exam</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowShortcuts(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg text-gray-400"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <ul className="space-y-3">
+                {SHORTCUTS.map((s) => (
+                  <li
+                    key={s.label}
+                    className="flex items-center justify-between gap-4 py-2.5 px-3 rounded-xl bg-gray-50"
+                  >
+                    <span className="text-sm text-gray-700">{s.label}</span>
+                    <span className="flex gap-1 shrink-0">
+                      {s.keys.map((k) => (
+                        <Kbd key={k}>{k}</Kbd>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="mt-5 text-center text-xs text-gray-400">
+                Press <Kbd>?</Kbd> anytime to toggle this panel
+              </p>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

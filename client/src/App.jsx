@@ -9,10 +9,13 @@ import ResultPage from './pages/ResultPage';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
 import TestHistory from './pages/TestHistory';
+import Bookmarks from './pages/Bookmarks';
+import OfflineBanner from './components/OfflineBanner';
 
 export default function App() {
   return (
     <>
+      <OfflineBanner />
       <Toaster
         position="top-center"
         toastOptions={{
@@ -33,6 +36,7 @@ export default function App() {
           <Route path="chapters/:chapterId" element={<ChapterDetail />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="history" element={<TestHistory />} />
+          <Route path="bookmarks" element={<Bookmarks />} />
           <Route path="admin" element={<Admin />} />
         </Route>
         <Route path="/exam/:testId" element={<ExamPage />} />

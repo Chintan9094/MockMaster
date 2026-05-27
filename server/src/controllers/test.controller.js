@@ -1,6 +1,7 @@
 const Test = require('../models/Test');
 const Chapter = require('../models/Chapter');
 const Topic = require('../models/Topic');
+const Question = require('../models/Question');
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
 
 exports.getChapters = asyncHandler(async (req, res) => {
@@ -8,9 +9,29 @@ exports.getChapters = asyncHandler(async (req, res) => {
     .populate('topics')
     .sort('number');
 
+  const topicIds = chapters.flatMap((ch) => (ch.topics || []).map((t) => t._id));
+  const countRows = topicIds.length
+    ? await Question.aggregate([
+        { $match: { topic: { $in: topicIds }, isActive: true } },
+        { $group: { _id: '$topic', count: { $sum: 1 } } }
+      ])
+    : [];
+  const countByTopic = Object.fromEntries(
+    countRows.map((row) => [row._id.toString(), row.count])
+  );
+
+  const data = chapters.map((ch) => {
+    const doc = ch.toObject();
+    doc.topics = (doc.topics || []).map((t) => ({
+      ...t,
+      questionCount: countByTopic[t._id.toString()] || 0
+    }));
+    return doc;
+  });
+
   res.json({
     success: true,
-    data: chapters
+    data
   });
 });
 

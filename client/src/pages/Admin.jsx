@@ -6,8 +6,37 @@ import toast from 'react-hot-toast';
 import {
   Plus, Trash2, BookOpen, FileText, HelpCircle, Loader2,
   ChevronDown, ChevronRight, Save, X, Layers, ArrowLeft, AlertTriangle,
-  Upload, FileJson, CheckCircle2
+  Upload, FileJson, CheckCircle2, Pencil
 } from 'lucide-react';
+
+function questionToEditForm(q) {
+  const opt = (id) => q.options?.find((o) => o.id === id)?.text || '';
+  return {
+    questionText: q.questionText,
+    optionA: opt('A'),
+    optionB: opt('B'),
+    optionC: opt('C'),
+    optionD: opt('D'),
+    correctAnswer: q.correctAnswer,
+    explanation: q.explanation || '',
+    difficulty: q.difficulty || 'medium'
+  };
+}
+
+function editFormToPayload(form) {
+  return {
+    questionText: form.questionText,
+    options: [
+      { id: 'A', text: form.optionA },
+      { id: 'B', text: form.optionB },
+      { id: 'C', text: form.optionC },
+      { id: 'D', text: form.optionD }
+    ],
+    correctAnswer: form.correctAnswer,
+    explanation: form.explanation,
+    difficulty: form.difficulty
+  };
+}
 
 function ConfirmModal({ open, onClose, onConfirm, title, message, loading }) {
   return (
@@ -38,7 +67,7 @@ function ConfirmModal({ open, onClose, onConfirm, title, message, loading }) {
                 <AlertTriangle className="w-7 h-7 text-red-500" />
               </motion.div>
               <h3 className="text-lg font-bold text-gray-900 mb-1">{title}</h3>
-              <p className="text-sm text-gray-500 mb-6">{message}</p>
+              <p className="text-sm text-gray-500 mb-6 whitespace-pre-line">{message}</p>
 
               <div className="flex gap-3">
                 <button
@@ -93,7 +122,33 @@ export default function Admin() {
     difficulty: 'medium'
   });
 
+  const [topicQuestions, setTopicQuestions] = useState([]);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
   useEffect(() => { fetchChapters(); }, []);
+
+  const fetchTopicQuestions = (topicId) => {
+    if (!topicId) {
+      setTopicQuestions([]);
+      setEditingId(null);
+      setEditForm(null);
+      return;
+    }
+    setQuestionsLoading(true);
+    api.get('/admin/questions', { params: { topicId } })
+      .then(({ data }) => setTopicQuestions(data.data || []))
+      .catch(() => toast.error('Failed to load questions'))
+      .finally(() => setQuestionsLoading(false));
+  };
+
+  useEffect(() => {
+    setEditingId(null);
+    setEditForm(null);
+    fetchTopicQuestions(questionForm.topicId);
+  }, [questionForm.topicId]);
 
   const fetchChapters = () => {
     setLoading(true);
@@ -207,6 +262,8 @@ export default function Admin() {
 
       setJsonResult({ success: true, count: formatted.length });
       setSavedCount(prev => prev + formatted.length);
+      fetchChapters();
+      fetchTopicQuestions(questionForm.topicId);
       toast.success(`${formatted.length} questions uploaded!`);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to upload questions');
@@ -253,6 +310,8 @@ export default function Admin() {
       });
 
       setSavedCount(prev => prev + 1);
+      fetchChapters();
+      fetchTopicQuestions(topicId);
       toast.success('Question saved & test updated!');
 
       setQuestionForm({
@@ -291,12 +350,58 @@ export default function Admin() {
     });
   };
 
+  const openDeleteQuestion = (q) => {
+    const preview = q.questionText.length > 100 ? `${q.questionText.slice(0, 100)}…` : q.questionText;
+    setDeleteModal({
+      open: true,
+      type: 'question',
+      id: q._id,
+      title: 'Delete Question?',
+      message: `Permanently delete this question?\n\n"${preview}"`
+    });
+  };
+
+  const startEditQuestion = (q) => {
+    setEditingId(q._id);
+    setEditForm(questionToEditForm(q));
+  };
+
+  const cancelEditQuestion = () => {
+    setEditingId(null);
+    setEditForm(null);
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editForm || !editingId) return;
+    const { questionText, optionA, optionB, optionC, optionD } = editForm;
+    if (!questionText || !optionA || !optionB || !optionC || !optionD) {
+      return toast.error('Fill question and all 4 options');
+    }
+    setSavingEdit(true);
+    try {
+      await api.put(`/admin/questions/${editingId}`, editFormToPayload(editForm));
+      toast.success('Question updated');
+      cancelEditQuestion();
+      fetchTopicQuestions(questionForm.topicId);
+      fetchChapters();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update question');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const handleConfirmDelete = async () => {
     setDeleting(true);
     try {
       if (deleteModal.type === 'chapter') {
         await api.delete(`/admin/chapters/${deleteModal.id}`);
         toast.success('Chapter deleted');
+      } else if (deleteModal.type === 'question') {
+        await api.delete(`/admin/questions/${deleteModal.id}`);
+        toast.success('Question deleted');
+        fetchTopicQuestions(questionForm.topicId);
       } else {
         await api.delete(`/admin/topics/${deleteModal.id}`);
         toast.success('Topic deleted');
@@ -407,7 +512,14 @@ export default function Admin() {
                     <div className="mt-3 ml-12 space-y-1.5">
                       {ch.topics.map(t => (
                         <div key={t._id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                          <span className="text-sm text-gray-700">{t.title}</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-sm text-gray-700 truncate">{t.title}</span>
+                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                              (t.questionCount ?? 0) === 0 ? 'bg-amber-50 text-amber-700' : 'bg-gray-200 text-gray-600'
+                            }`}>
+                              {t.questionCount ?? 0}
+                            </span>
+                          </div>
                           <button
                             onClick={() => openDeleteTopic(t)}
                             className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
@@ -485,11 +597,18 @@ export default function Admin() {
                   <div className="space-y-1.5">
                     {ch.topics.map(t => (
                       <div key={t._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-indigo-500" />
-                          <span className="text-sm text-gray-700">{t.title}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
+                          <span className="text-sm text-gray-700 truncate">{t.title}</span>
+                          <span className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                            (t.questionCount ?? 0) === 0
+                              ? 'bg-amber-50 text-amber-700'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {t.questionCount ?? 0} {(t.questionCount ?? 0) === 1 ? 'question' : 'questions'}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           <code className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded hidden sm:inline">{t._id}</code>
                           <button
                             onClick={() => openDeleteTopic(t)}
@@ -546,6 +665,151 @@ export default function Admin() {
               </select>
             </div>
           </div>
+
+          {/* Existing questions */}
+          {questionForm.topicId && (
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-indigo-600" />
+                  Questions in this topic
+                  <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                    {questionsLoading ? '…' : topicQuestions.length}
+                  </span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => fetchTopicQuestions(questionForm.topicId)}
+                  disabled={questionsLoading}
+                  className="text-xs font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {questionsLoading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+                </div>
+              ) : topicQuestions.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No questions yet. Add below or upload JSON.</p>
+              ) : (
+                <div className="max-h-[420px] overflow-y-auto space-y-3 pr-1">
+                  {topicQuestions.map((q, idx) => (
+                    <div key={q._id} className="border border-gray-200 rounded-xl overflow-hidden">
+                      {editingId === q._id && editForm ? (
+                        <form onSubmit={handleSaveEdit} className="p-4 bg-indigo-50/40 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-indigo-600">Edit Q{idx + 1}</span>
+                            <button type="button" onClick={cancelEditQuestion} className="p-1 text-gray-400 hover:text-gray-600">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <textarea
+                            value={editForm.questionText}
+                            onChange={(e) => setEditForm({ ...editForm, questionText: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                            rows={2}
+                            required
+                          />
+                          <div className="grid sm:grid-cols-2 gap-2">
+                            {['A', 'B', 'C', 'D'].map((letter) => (
+                              <input
+                                key={letter}
+                                type="text"
+                                value={editForm[`option${letter}`]}
+                                onChange={(e) => setEditForm({ ...editForm, [`option${letter}`]: e.target.value })}
+                                placeholder={`Option ${letter}`}
+                                className="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                required
+                              />
+                            ))}
+                          </div>
+                          <div className="grid sm:grid-cols-3 gap-2">
+                            <select
+                              value={editForm.correctAnswer}
+                              onChange={(e) => setEditForm({ ...editForm, correctAnswer: e.target.value })}
+                              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                            >
+                              {['A', 'B', 'C', 'D'].map((l) => <option key={l} value={l}>{l} correct</option>)}
+                            </select>
+                            <select
+                              value={editForm.difficulty}
+                              onChange={(e) => setEditForm({ ...editForm, difficulty: e.target.value })}
+                              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                            >
+                              <option value="easy">Easy</option>
+                              <option value="medium">Medium</option>
+                              <option value="hard">Hard</option>
+                            </select>
+                            <button
+                              type="submit"
+                              disabled={savingEdit}
+                              className="btn-primary !py-2 !text-xs !rounded-lg flex items-center justify-center gap-1"
+                            >
+                              {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                              Save
+                            </button>
+                          </div>
+                          <textarea
+                            value={editForm.explanation}
+                            onChange={(e) => setEditForm({ ...editForm, explanation: e.target.value })}
+                            placeholder="Explanation (optional)"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                            rows={2}
+                          />
+                        </form>
+                      ) : (
+                        <div className="p-4 bg-gray-50/50">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[10px] font-bold text-gray-400">Q{idx + 1}</span>
+                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded uppercase ${
+                                  q.difficulty === 'easy' ? 'bg-emerald-50 text-emerald-600' :
+                                  q.difficulty === 'hard' ? 'bg-red-50 text-red-600' :
+                                  'bg-amber-50 text-amber-600'
+                                }`}>
+                                  {q.difficulty}
+                                </span>
+                                <span className="text-[10px] text-gray-500">Answer: {q.correctAnswer}</span>
+                              </div>
+                              <p className="text-sm text-gray-800 leading-snug">{q.questionText}</p>
+                              <ul className="mt-2 space-y-0.5">
+                                {q.options?.map((o) => (
+                                  <li key={o.id} className={`text-xs ${o.id === q.correctAnswer ? 'text-emerald-700 font-medium' : 'text-gray-500'}`}>
+                                    {o.id}. {o.text}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => startEditQuestion(q)}
+                                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="Edit"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openDeleteQuestion(q)}
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* JSON Upload - shows when topic selected */}
           {questionForm.topicId && (

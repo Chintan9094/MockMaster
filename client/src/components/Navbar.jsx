@@ -1,12 +1,13 @@
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, LayoutDashboard, GraduationCap, Menu, X } from 'lucide-react';
+import { BookOpen, LayoutDashboard, GraduationCap, Menu, X, Bookmark } from 'lucide-react';
 import { useState } from 'react';
 
 const navLinks = [
   { to: '/', label: 'Home', icon: null },
   { to: '/chapters', label: 'Mock Tests', icon: GraduationCap },
   { to: '/dashboard', label: 'My Progress', icon: LayoutDashboard },
+  { to: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
 ];
 
 export default function Navbar() {
