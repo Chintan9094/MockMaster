@@ -1,5 +1,4 @@
 /// <reference types="vite/client" />
-/// <reference types="vite-plugin-pwa/client" />
 
 interface ImportMetaEnv {
   /** Render (or other) backend API root, e.g. https://your-app.onrender.com/api */
