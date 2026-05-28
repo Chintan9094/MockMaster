@@ -1,5 +1,5 @@
 {
-  "name": "wireless-psi-prep-server",
+  "name": "mock-master-server",
   "version": "1.0.0",
   "description": "Backend API for Mock Test Engine",
   "main": "src/index.js",

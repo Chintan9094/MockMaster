@@ -7,7 +7,7 @@ const Question = require('../models/Question');
 const Test = require('../models/Test');
 const User = require('../models/User');
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/wireless-psi-prep';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/mock-master';
 
 const chaptersData = [
   {
