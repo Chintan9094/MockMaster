@@ -33,6 +33,13 @@ app.use('/api/attempts', attemptRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'MockMaster API is running'
+  });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'Server is running' });
 });
