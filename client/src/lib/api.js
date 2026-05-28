@@ -12,7 +12,9 @@ function getSessionId() {
 /** API base URL. Empty → `/api` (Vite dev proxy). Production: `https://your-app.onrender.com/api` */
 function getApiBaseUrl() {
   const url = import.meta.env.VITE_API_URL?.trim();
+
   if (!url) return '/api';
+
   return `${url.replace(/\/$/, '')}/api`;
 }
 
