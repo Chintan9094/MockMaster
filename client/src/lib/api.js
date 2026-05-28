@@ -13,7 +13,7 @@ function getSessionId() {
 function getApiBaseUrl() {
   const url = import.meta.env.VITE_API_URL?.trim();
   if (!url) return '/api';
-  return url.replace(/\/$/, '');
+  return `${url.replace(/\/$/, '')}/api`;
 }
 
 const api = axios.create({
