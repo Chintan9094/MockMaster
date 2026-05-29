@@ -21,9 +21,9 @@ const SHORTCUTS = [
   { keys: ['Esc'], label: 'Close panels' },
 ];
 
-function Kbd({ children }) {
+function Kbd({ children, className = '' }) {
   return (
-    <kbd className="inline-flex min-w-[1.25rem] items-center justify-center px-1.5 py-0.5 text-[10px] font-mono font-semibold text-gray-600 bg-gray-100 border border-gray-200 rounded shadow-[0_1px_0_rgba(0,0,0,0.06)]">
+    <kbd className={`inline-flex min-w-[1.25rem] items-center justify-center px-1.5 py-0.5 text-[10px] font-mono font-semibold text-gray-600 bg-gray-100 border border-gray-200 rounded shadow-[0_1px_0_rgba(0,0,0,0.06)] ${className}`}>
       {children}
     </kbd>
   );
@@ -247,7 +247,7 @@ export default function ExamPage() {
           <button
             type="button"
             onClick={() => setShowShortcuts(true)}
-            className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            className="hidden md:flex p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
             title="Keyboard shortcuts (?)"
           >
             <Keyboard className="w-4 h-4" />
@@ -336,7 +336,7 @@ export default function ExamPage() {
                   </div>
 
                   <div className="px-3 sm:px-4 pb-2">
-                    <p className="text-[10px] text-gray-400 mb-2 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <p className="hidden md:flex text-[10px] text-gray-400 mb-2 flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span><Kbd>1</Kbd>–<Kbd>4</Kbd> select</span>
                       <span><Kbd>←</Kbd><Kbd>→</Kbd> nav</span>
                       <span><Kbd>M</Kbd> review</span>
@@ -379,7 +379,7 @@ export default function ExamPage() {
                             <span className="font-semibold text-indigo-600 mr-1.5">{option.id}.</span>
                             {option.text}
                           </span>
-                          {hotkey && <Kbd>{hotkey}</Kbd>}
+                          {hotkey && <Kbd className="hidden sm:inline-flex">{hotkey}</Kbd>}
                         </button>
                       );
                     })}
@@ -390,20 +390,20 @@ export default function ExamPage() {
           </div>
 
           {/* Bottom bar — always visible */}
-          <div className="shrink-0 border-t border-gray-200 bg-white px-4 sm:px-6 py-3 pb-safe lg:pb-3">
-            <div className="max-w-3xl mx-auto flex items-center justify-between gap-2 pr-14 lg:pr-0">
+          <div className="shrink-0 border-t border-gray-200 bg-white px-3 sm:px-6 py-2.5 sm:py-3 pb-safe lg:pb-3">
+            <div className="max-w-3xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2">
               <motion.button
                 whileHover={{ x: -2 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
                 disabled={currentIndex === 0}
                 title="Previous (←)"
-                className="flex items-center gap-1 px-4 py-2 text-gray-600 text-[13px] font-medium hover:bg-gray-50 rounded-lg border border-gray-200 transition-all disabled:opacity-30"
+                className="flex items-center gap-0.5 sm:gap-1 px-2.5 sm:px-4 py-2 text-gray-600 text-[12px] sm:text-[13px] font-medium hover:bg-gray-50 rounded-lg border border-gray-200 transition-all disabled:opacity-30 shrink-0"
               >
                 <ChevronLeft className="w-4 h-4" /> Prev
               </motion.button>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-0.5 sm:gap-1.5">
                 <button
                   onClick={clearAnswer}
                   disabled={!currentAnswer?.selectedAnswer}
@@ -444,6 +444,15 @@ export default function ExamPage() {
                 >
                   <Bookmark className="w-4 h-4" fill={isBookmarked(currentQuestion?._id) ? 'currentColor' : 'none'} />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setMobilePalette(true)}
+                  className="lg:hidden flex flex-col items-center justify-center min-w-[2.5rem] px-1.5 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shrink-0"
+                  title="Question overview"
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                  <span className="text-[9px] font-bold leading-none mt-0.5">{answeredCount}/{questions.length}</span>
+                </button>
               </div>
 
               <motion.button
@@ -452,7 +461,7 @@ export default function ExamPage() {
                 onClick={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))}
                 disabled={currentIndex === questions.length - 1}
                 title="Next (→)"
-                className="flex items-center gap-1 px-4 py-2 bg-indigo-600 text-white text-[13px] font-semibold rounded-lg hover:bg-indigo-700 transition-all disabled:opacity-30 shadow-sm"
+                className="flex items-center gap-0.5 sm:gap-1 px-2.5 sm:px-4 py-2 bg-indigo-600 text-white text-[12px] sm:text-[13px] font-semibold rounded-lg hover:bg-indigo-700 transition-all disabled:opacity-30 shadow-sm shrink-0"
               >
                 Next <ChevronRight className="w-4 h-4" />
               </motion.button>
@@ -476,16 +485,6 @@ export default function ExamPage() {
           />
         </aside>
       </div>
-
-      {/* Mobile FAB */}
-      <motion.button
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setMobilePalette(true)}
-        className="lg:hidden fixed bottom-5 right-5 z-[60] w-14 h-14 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-600/30 flex flex-col items-center justify-center"
-      >
-        <Grid3X3 className="w-5 h-5" />
-        <span className="text-[9px] font-bold mt-0.5">{answeredCount}/{questions.length}</span>
-      </motion.button>
 
       {/* Mobile Palette Sheet */}
       <AnimatePresence>
