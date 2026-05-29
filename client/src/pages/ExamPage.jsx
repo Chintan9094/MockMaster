@@ -390,20 +390,20 @@ export default function ExamPage() {
           </div>
 
           {/* Bottom bar — always visible */}
-          <div className="shrink-0 border-t border-gray-200 bg-white px-3 sm:px-6 py-2.5 sm:py-3 pb-safe lg:pb-3">
-            <div className="max-w-3xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2">
+          <div className="shrink-0 border-t border-gray-200 bg-white px-4 sm:px-6 py-3 pb-safe lg:pb-3">
+            <div className="max-w-3xl mx-auto flex items-center justify-between gap-2">
               <motion.button
                 whileHover={{ x: -2 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
                 disabled={currentIndex === 0}
                 title="Previous (←)"
-                className="flex items-center gap-0.5 sm:gap-1 px-2.5 sm:px-4 py-2 text-gray-600 text-[12px] sm:text-[13px] font-medium hover:bg-gray-50 rounded-lg border border-gray-200 transition-all disabled:opacity-30 shrink-0"
+                className="flex items-center gap-1 px-4 py-2 text-gray-600 text-[13px] font-medium hover:bg-gray-50 rounded-lg border border-gray-200 transition-all disabled:opacity-30"
               >
                 <ChevronLeft className="w-4 h-4" /> Prev
               </motion.button>
 
-              <div className="flex items-center gap-0.5 sm:gap-1.5">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={clearAnswer}
                   disabled={!currentAnswer?.selectedAnswer}
@@ -444,15 +444,6 @@ export default function ExamPage() {
                 >
                   <Bookmark className="w-4 h-4" fill={isBookmarked(currentQuestion?._id) ? 'currentColor' : 'none'} />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setMobilePalette(true)}
-                  className="lg:hidden flex flex-col items-center justify-center min-w-[2.5rem] px-1.5 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shrink-0"
-                  title="Question overview"
-                >
-                  <Grid3X3 className="w-4 h-4" />
-                  <span className="text-[9px] font-bold leading-none mt-0.5">{answeredCount}/{questions.length}</span>
-                </button>
               </div>
 
               <motion.button
@@ -461,7 +452,7 @@ export default function ExamPage() {
                 onClick={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))}
                 disabled={currentIndex === questions.length - 1}
                 title="Next (→)"
-                className="flex items-center gap-0.5 sm:gap-1 px-2.5 sm:px-4 py-2 bg-indigo-600 text-white text-[12px] sm:text-[13px] font-semibold rounded-lg hover:bg-indigo-700 transition-all disabled:opacity-30 shadow-sm shrink-0"
+                className="flex items-center gap-1 px-4 py-2 bg-indigo-600 text-white text-[13px] font-semibold rounded-lg hover:bg-indigo-700 transition-all disabled:opacity-30 shadow-sm"
               >
                 Next <ChevronRight className="w-4 h-4" />
               </motion.button>
@@ -485,6 +476,16 @@ export default function ExamPage() {
           />
         </aside>
       </div>
+
+      {/* Mobile FAB — above bottom bar so it does not overlap Next */}
+      <motion.button
+        whileTap={{ scale: 0.9 }}
+        onClick={() => setMobilePalette(true)}
+        className="lg:hidden fixed right-5 z-[60] w-14 h-14 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-600/30 flex flex-col items-center justify-center bottom-[calc(5rem+env(safe-area-inset-bottom,0px))]"
+      >
+        <Grid3X3 className="w-5 h-5" />
+        <span className="text-[9px] font-bold mt-0.5">{answeredCount}/{questions.length}</span>
+      </motion.button>
 
       {/* Mobile Palette Sheet */}
       <AnimatePresence>
