@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../lib/api';
+import { usePageCache } from '../hooks/usePageCache';
 import {
   ArrowLeft, ArrowRight, Loader2, Clock, CheckCircle2, XCircle,
   Calendar, Trophy, Filter
@@ -9,16 +10,18 @@ import {
 import toast from 'react-hot-toast';
 
 export default function TestHistory() {
-  const [attempts, setAttempts] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    api.get('/attempts/my-attempts')
-      .then(({ data }) => setAttempts(data.data))
-      .catch(() => toast.error('Failed to load history'))
-      .finally(() => setLoading(false));
+  const fetchAttempts = useCallback(async () => {
+    const { data } = await api.get('/attempts/my-attempts');
+    return data.data;
   }, []);
+
+  const { data: attempts = [], loading, error } = usePageCache('test-history', fetchAttempts);
+
+  useEffect(() => {
+    if (error && !loading) toast.error('Failed to load history');
+  }, [error, loading]);
 
   const filtered = attempts.filter(a => {
     if (filter === 'all') return true;

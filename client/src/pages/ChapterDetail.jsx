@@ -1,27 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../lib/api';
+import { usePageCache } from '../hooks/usePageCache';
 import { ArrowLeft, Clock, Award, Play, Loader2, FileText, BookOpen, ServerCrash, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function ChapterDetail() {
   const { chapterId } = useParams();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
   const navigate = useNavigate();
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(false);
-    api.get(`/tests/chapters/${chapterId}`)
-      .then(({ data }) => setData(data.data))
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  };
+  const fetchData = useCallback(async () => {
+    const { data } = await api.get(`/tests/chapters/${chapterId}`);
+    return data.data;
+  }, [chapterId]);
 
-  useEffect(() => { fetchData(); }, [chapterId]);
+  const { data, loading, error, refetch } = usePageCache(`chapter:${chapterId}`, fetchData);
 
   if (loading) {
     return (
@@ -48,7 +42,7 @@ export default function ChapterDetail() {
           <Link to="/chapters" className="btn-ghost">
             <ArrowLeft className="w-4 h-4" /> Back
           </Link>
-          <button onClick={fetchData} className="btn-primary !rounded-xl !py-2.5">
+          <button onClick={refetch} className="btn-primary !rounded-xl !py-2.5">
             <RefreshCw className="w-4 h-4" /> Try Again
           </button>
         </div>
@@ -108,7 +102,7 @@ export default function ChapterDetail() {
             <Link to="/chapters" className="btn-ghost">
               <ArrowLeft className="w-4 h-4" /> Back to Chapters
             </Link>
-            <button onClick={fetchData} className="btn-primary !rounded-xl">
+            <button onClick={refetch} className="btn-primary !rounded-xl">
               <RefreshCw className="w-4 h-4" /> Refresh
             </button>
           </div>

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../lib/api';
+import { usePageCache } from '../hooks/usePageCache';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell
@@ -16,33 +17,37 @@ const COLORS = ['#22c55e', '#ef4444', '#94a3b8'];
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [overall, setOverall] = useState(null);
-  const [topicData, setTopicData] = useState(null);
-  const [incomplete, setIncomplete] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  const fetchData = () => {
-    setLoading(true);
-    Promise.all([
+  const fetchData = useCallback(async () => {
+    const [overallRes, topicsRes, incompleteRes] = await Promise.all([
       api.get('/analytics/overall'),
       api.get('/analytics/topics'),
       api.get('/attempts/incomplete')
-    ])
-      .then(([overallRes, topicsRes, incompleteRes]) => {
-        setOverall(overallRes.data.data);
-        setTopicData(topicsRes.data.data);
-        setIncomplete(incompleteRes.data.data);
-      })
-      .catch(() => toast.error('Failed to load data'))
-      .finally(() => setLoading(false));
-  };
+    ]);
+    return {
+      overall: overallRes.data.data,
+      topicData: topicsRes.data.data,
+      incomplete: incompleteRes.data.data
+    };
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  const { data, loading, error, setData } = usePageCache('dashboard', fetchData);
+
+  useEffect(() => {
+    if (error && !data && !loading) toast.error('Failed to load data');
+  }, [error, data, loading]);
+
+  const overall = data?.overall ?? null;
+  const topicData = data?.topicData ?? null;
+  const incomplete = data?.incomplete ?? [];
 
   const handleAbandon = async (attemptId) => {
     try {
       await api.post(`/attempts/${attemptId}/abandon`);
-      setIncomplete(incomplete.filter(a => a._id !== attemptId));
+      setData((prev) => ({
+        ...prev,
+        incomplete: prev.incomplete.filter((a) => a._id !== attemptId)
+      }));
       toast.success('Attempt discarded');
     } catch {
       toast.error('Failed to discard');
@@ -52,7 +57,7 @@ export default function Dashboard() {
   const handleClearAll = async () => {
     try {
       await api.post('/attempts/abandon-all');
-      setIncomplete([]);
+      setData((prev) => ({ ...prev, incomplete: [] }));
       toast.success('All incomplete attempts cleared');
     } catch {
       toast.error('Failed to clear');

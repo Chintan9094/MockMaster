@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../lib/api';
+import { usePageCache } from '../hooks/usePageCache';
 import { ChevronRight, Loader2, BookOpen, Layers, ServerCrash, RefreshCw } from 'lucide-react';
 
 const chapterColors = [
@@ -14,20 +15,12 @@ const chapterColors = [
 ];
 
 export default function Chapters() {
-  const [chapters, setChapters] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const fetchChapters = useCallback(async () => {
+    const { data } = await api.get('/tests/chapters');
+    return data.data;
+  }, []);
 
-  const fetchChapters = () => {
-    setLoading(true);
-    setError(false);
-    api.get('/tests/chapters')
-      .then(({ data }) => setChapters(data.data))
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchChapters(); }, []);
+  const { data: chapters, loading, error, refetch } = usePageCache('chapters', fetchChapters);
 
   if (loading) {
     return (
@@ -50,14 +43,14 @@ export default function Chapters() {
             The backend server is not running. Start it with: <code className="bg-gray-100 px-2 py-0.5 rounded text-xs font-mono text-indigo-600">cd server && npm run dev</code>
           </p>
         </div>
-        <button onClick={fetchChapters} className="btn-primary !rounded-xl !py-2.5 mt-2">
+        <button onClick={refetch} className="btn-primary !rounded-xl !py-2.5 mt-2">
           <RefreshCw className="w-4 h-4" /> Try Again
         </button>
       </div>
     );
   }
 
-  if (!chapters.length) {
+  if (!chapters?.length) {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
         <div className="mb-10">
@@ -81,7 +74,7 @@ export default function Chapters() {
             <p className="text-[11px] text-gray-400 mb-2 font-medium">Run in terminal:</p>
             <code className="text-sm text-emerald-400 font-mono">cd server && npm run seed</code>
           </div>
-          <button onClick={fetchChapters} className="btn-primary !rounded-xl">
+          <button onClick={refetch} className="btn-primary !rounded-xl">
             <RefreshCw className="w-4 h-4" /> Refresh
           </button>
         </div>
