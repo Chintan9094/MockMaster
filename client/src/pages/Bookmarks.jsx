@@ -1,16 +1,49 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bookmark, ArrowLeft, Trash2, ChevronDown, CheckCircle2,
-  BookOpen, AlertTriangle
+  BookOpen, AlertTriangle, Loader2
 } from 'lucide-react';
 import { useBookmarkStore } from '../store/bookmarkStore';
+import toast from 'react-hot-toast';
 
 export default function Bookmarks() {
-  const { bookmarks, removeBookmark, clearAll } = useBookmarkStore();
+  const { bookmarks, loading, fetchBookmarks, removeBookmark, clearAll } = useBookmarkStore();
   const [expandedQ, setExpandedQ] = useState({});
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  useEffect(() => {
+    fetchBookmarks().catch(() => toast.error('Failed to load bookmarks'));
+  }, [fetchBookmarks]);
+
+  const handleRemove = async (questionId) => {
+    try {
+      await removeBookmark(questionId);
+      toast.success('Bookmark removed');
+    } catch {
+      toast.error('Failed to remove bookmark');
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      await clearAll();
+      setShowClearConfirm(false);
+      toast.success('All bookmarks cleared');
+    } catch {
+      toast.error('Failed to clear bookmarks');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+        <Loader2 className="w-7 h-7 animate-spin text-indigo-500" />
+        <p className="text-sm text-gray-400">Loading bookmarks...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
@@ -91,7 +124,7 @@ export default function Bookmarks() {
                         </p>
                       </div>
                       <button
-                        onClick={(e) => { e.stopPropagation(); removeBookmark(q.questionId); }}
+                        onClick={(e) => { e.stopPropagation(); handleRemove(q.questionId); }}
                         className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
                         title="Remove bookmark"
                       >
@@ -185,7 +218,7 @@ export default function Bookmarks() {
                     Cancel
                   </button>
                   <button
-                    onClick={() => { clearAll(); setShowClearConfirm(false); }}
+                    onClick={handleClearAll}
                     className="flex-1 px-4 py-3 bg-red-600 text-white font-semibold text-sm rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <Trash2 className="w-4 h-4" /> Clear All

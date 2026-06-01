@@ -17,6 +17,16 @@ const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+    if (decoded.isAdmin && decoded.adminEmail) {
+      req.user = {
+        _id: 'env-admin',
+        email: decoded.adminEmail,
+        role: 'admin',
+        name: 'Admin'
+      };
+      return next();
+    }
+
     req.user = await User.findById(decoded.id);
     if (!req.user) {
       return res.status(401).json({

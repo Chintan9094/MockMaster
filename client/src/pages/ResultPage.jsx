@@ -16,14 +16,15 @@ export default function ResultPage() {
   const [loading, setLoading] = useState(true);
   const [expandedQ, setExpandedQ] = useState({});
   const [showAll, setShowAll] = useState(false);
-  const { toggleBookmark, isBookmarked } = useBookmarkStore();
+  const { fetchBookmarks, toggleBookmark, isBookmarked } = useBookmarkStore();
 
   useEffect(() => {
+    fetchBookmarks().catch(() => {});
     api.get(`/attempts/${attemptId}/result`)
       .then(({ data }) => setResult(data.data))
       .catch(() => toast.error('Failed to load result'))
       .finally(() => setLoading(false));
-  }, [attemptId]);
+  }, [attemptId, fetchBookmarks]);
 
   if (loading) {
     return (
@@ -185,17 +186,21 @@ export default function ResultPage() {
                         </p>
                       </div>
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          const added = toggleBookmark({
-                            questionId: question._id,
-                            questionText: question.questionText,
-                            options: question.options,
-                            correctAnswer: question.correctAnswer,
-                            explanation: question.explanation || '',
-                            difficulty: question.difficulty
-                          });
-                          toast.success(added ? 'Question bookmarked' : 'Bookmark removed');
+                          try {
+                            const added = await toggleBookmark({
+                              questionId: question._id,
+                              questionText: question.questionText,
+                              options: question.options,
+                              correctAnswer: question.correctAnswer,
+                              explanation: question.explanation || '',
+                              difficulty: question.difficulty
+                            });
+                            toast.success(added ? 'Question bookmarked' : 'Bookmark removed');
+                          } catch {
+                            toast.error('Failed to update bookmark');
+                          }
                         }}
                         className={`p-1.5 rounded-lg flex-shrink-0 transition-colors ${
                           isBookmarked(question._id)

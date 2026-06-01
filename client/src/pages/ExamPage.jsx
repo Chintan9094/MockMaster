@@ -46,15 +46,16 @@ export default function ExamPage() {
     clearAnswer, decrementTime, incrementTabSwitch, setFullscreen,
     submitExam, resetExam
   } = useExamStore();
-  const { toggleBookmark, isBookmarked } = useBookmarkStore();
+  const { fetchBookmarks, toggleBookmark, isBookmarked } = useBookmarkStore();
 
   const loadingRef = useRef(false);
   useEffect(() => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     loadExam();
+    fetchBookmarks().catch(() => {});
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [testId]);
+  }, [testId, fetchBookmarks]);
 
   useEffect(() => {
     if (attempt && timeRemaining > 0) {
@@ -319,7 +320,7 @@ export default function ExamPage() {
         {/* Question Area */}
         <div className="flex-1 flex flex-col min-h-0 bg-[#f5f6fa]">
           <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={currentIndex}
@@ -327,27 +328,15 @@ export default function ExamPage() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -15 }}
                   transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-                  className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+                  className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
                 >
-                  <div className="px-5 sm:px-6 pt-4 pb-3">
-                    <h2 className="text-[15px] sm:text-[16px] font-medium text-gray-900 leading-relaxed">
+                  <div className="px-6 sm:px-8 pt-6 pb-4">
+                    <h2 className="text-[18px] sm:text-[20px] font-medium text-gray-900 leading-relaxed">
                       {currentQuestion?.questionText}
                     </h2>
                   </div>
 
-                  <div className="px-3 sm:px-4 pb-2">
-                    <p className="hidden md:flex text-[10px] text-gray-400 mb-2 flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span><Kbd>1</Kbd>–<Kbd>4</Kbd> select</span>
-                      <span><Kbd>←</Kbd><Kbd>→</Kbd> nav</span>
-                      <span><Kbd>M</Kbd> review</span>
-                      <button
-                        type="button"
-                        onClick={() => setShowShortcuts(true)}
-                        className="text-indigo-500 hover:text-indigo-700 font-medium"
-                      >
-                        Shortcuts
-                      </button>
-                    </p>
+                  <div className="px-4 sm:px-5 pb-3 sm:pb-4">
                     {currentQuestion?.options?.map((option) => {
                       const isSelected = currentAnswer?.selectedAnswer === option.id;
                       const hotkey = { A: '1', B: '2', C: '3', D: '4' }[option.id];
@@ -356,11 +345,11 @@ export default function ExamPage() {
                           key={option.id}
                           type="button"
                           onClick={() => selectAnswer(option.id)}
-                          className={`w-full text-left px-4 py-3 border-b border-gray-100 last:border-b-0 flex items-center gap-3 transition-all duration-150 hover:bg-indigo-50/40 ${
+                          className={`w-full text-left px-5 py-4 sm:py-5 border-b border-gray-100 last:border-b-0 flex items-center gap-3 transition-all duration-150 hover:bg-indigo-50/40 ${
                             isSelected ? 'bg-indigo-50' : ''
                           }`}
                         >
-                          <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                          <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                             isSelected
                               ? 'border-indigo-600 bg-indigo-600'
                               : 'border-gray-300'
@@ -369,14 +358,14 @@ export default function ExamPage() {
                               <motion.span
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
-                                className="w-1.5 h-1.5 bg-white rounded-full"
+                                className="w-2 h-2 bg-white rounded-full"
                               />
                             )}
                           </span>
-                          <span className={`flex-1 text-[14px] leading-snug ${
+                          <span className={`flex-1 text-[16px] sm:text-[17px] leading-snug ${
                             isSelected ? 'text-indigo-900 font-medium' : 'text-gray-700'
                           }`}>
-                            <span className="font-semibold text-indigo-600 mr-1.5">{option.id}.</span>
+                            <span className="font-semibold text-indigo-600 mr-2">{option.id}.</span>
                             {option.text}
                           </span>
                           {hotkey && <Kbd className="hidden sm:inline-flex">{hotkey}</Kbd>}
@@ -424,16 +413,20 @@ export default function ExamPage() {
                   <Flag className="w-4 h-4" fill={currentAnswer?.markedForReview ? 'currentColor' : 'none'} />
                 </button>
                 <button
-                  onClick={() => {
-                    const added = toggleBookmark({
-                      questionId: currentQuestion._id,
-                      questionText: currentQuestion.questionText,
-                      options: currentQuestion.options,
-                      correctAnswer: currentQuestion.correctAnswer,
-                      explanation: currentQuestion.explanation || '',
-                      difficulty: currentQuestion.difficulty
-                    });
-                    toast.success(added ? 'Question bookmarked' : 'Bookmark removed');
+                  onClick={async () => {
+                    try {
+                      const added = await toggleBookmark({
+                        questionId: currentQuestion._id,
+                        questionText: currentQuestion.questionText,
+                        options: currentQuestion.options,
+                        correctAnswer: currentQuestion.correctAnswer,
+                        explanation: currentQuestion.explanation || '',
+                        difficulty: currentQuestion.difficulty
+                      });
+                      toast.success(added ? 'Question bookmarked' : 'Bookmark removed');
+                    } catch {
+                      toast.error('Failed to update bookmark');
+                    }
                   }}
                   className={`p-2 rounded-lg transition-all ${
                     isBookmarked(currentQuestion?._id)

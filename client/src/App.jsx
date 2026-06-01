@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
@@ -11,8 +12,20 @@ import Admin from './pages/Admin';
 import TestHistory from './pages/TestHistory';
 import Bookmarks from './pages/Bookmarks';
 import OfflineBanner from './components/OfflineBanner';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import RequireAuth from './components/RequireAuth';
+import RequireAdmin from './components/RequireAdmin';
+import { useAuthStore } from './store/authStore';
 
 export default function App() {
+  const bootstrap = useAuthStore((s) => s.bootstrap);
+  const bootstrapped = useAuthStore((s) => s.bootstrapped);
+
+  useEffect(() => {
+    if (!bootstrapped) bootstrap();
+  }, [bootstrapped, bootstrap]);
+
   return (
     <>
       <OfflineBanner />
@@ -34,13 +47,15 @@ export default function App() {
           <Route index element={<Home />} />
           <Route path="chapters" element={<Chapters />} />
           <Route path="chapters/:chapterId" element={<ChapterDetail />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="history" element={<TestHistory />} />
-          <Route path="bookmarks" element={<Bookmarks />} />
-          <Route path="admin" element={<Admin />} />
+          <Route path="dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
+          <Route path="history" element={<RequireAuth><TestHistory /></RequireAuth>} />
+          <Route path="bookmarks" element={<RequireAuth><Bookmarks /></RequireAuth>} />
+          <Route path="admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
         </Route>
-        <Route path="/exam/:testId" element={<ExamPage />} />
-        <Route path="/result/:attemptId" element={<ResultPage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/exam/:testId" element={<RequireAuth><ExamPage /></RequireAuth>} />
+        <Route path="/result/:attemptId" element={<RequireAuth><ResultPage /></RequireAuth>} />
       </Routes>
     </>
   );

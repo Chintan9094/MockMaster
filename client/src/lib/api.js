@@ -1,13 +1,5 @@
 import axios from 'axios';
-
-function getSessionId() {
-  let id = localStorage.getItem('psi_session_id');
-  if (!id) {
-    id = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
-    localStorage.setItem('psi_session_id', id);
-  }
-  return id;
-}
+import { getAuthToken } from './authStorage';
 
 /** API base URL. Empty → `/api` (Vite dev proxy). Production: `https://your-app.onrender.com/api` */
 function getApiBaseUrl() {
@@ -15,7 +7,8 @@ function getApiBaseUrl() {
 
   if (!url) return '/api';
 
-  return `${url.replace(/\/$/, '')}/api`;
+  const cleaned = url.replace(/\/$/, '');
+  return cleaned.endsWith('/api') ? cleaned : `${cleaned}/api`;
 }
 
 const api = axios.create({
@@ -24,8 +17,21 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  config.headers['x-session-id'] = getSessionId();
+  const token = getAuthToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      import('../store/authStore').then(({ useAuthStore }) => {
+        useAuthStore.getState().handleUnauthorized();
+      });
+    }
+    return Promise.reject(error);
+  }
+);
 
 export default api;

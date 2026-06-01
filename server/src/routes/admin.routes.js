@@ -11,6 +11,9 @@ const {
   deleteChapter,
   deleteTopic
 } = require('../controllers/admin.controller');
+const { protect, authorize } = require('../middleware/auth');
+
+router.use(protect, authorize('admin'));
 
 router.post('/chapters', addChapter);
 router.post('/topics', addTopic);

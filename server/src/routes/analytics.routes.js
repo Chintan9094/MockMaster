@@ -5,9 +5,9 @@ const {
   getTopicWiseAnalytics,
   getChapterWiseAnalytics
 } = require('../controllers/analytics.controller');
-const { sessionAuth } = require('../middleware/session');
+const { protect } = require('../middleware/auth');
 
-router.use(sessionAuth);
+router.use(protect);
 
 router.get('/overall', getOverallAnalytics);
 router.get('/topics', getTopicWiseAnalytics);

@@ -11,9 +11,9 @@ const {
   abandonAttempt,
   abandonAllIncomplete
 } = require('../controllers/attempt.controller');
-const { sessionAuth } = require('../middleware/session');
+const { protect } = require('../middleware/auth');
 
-router.use(sessionAuth);
+router.use(protect);
 
 router.post('/start/:testId', startTest);
 router.put('/:attemptId/answer', saveAnswer);

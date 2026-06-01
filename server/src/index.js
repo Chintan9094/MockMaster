@@ -10,6 +10,8 @@ const testRoutes = require('./routes/test.routes');
 const attemptRoutes = require('./routes/attempt.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const adminRoutes = require('./routes/admin.routes');
+const authRoutes = require('./routes/auth.routes');
+const bookmarkRoutes = require('./routes/bookmark.routes');
 
 const app = express();
 
@@ -32,8 +34,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use('/api/', limiter);
 
 app.use('/api/tests', testRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/attempts', attemptRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/bookmarks', bookmarkRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.get('/', (req, res) => {
