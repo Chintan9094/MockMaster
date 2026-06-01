@@ -2,6 +2,7 @@ const TestAttempt = require('../models/TestAttempt');
 const Test = require('../models/Test');
 const Question = require('../models/Question');
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
+const { getDbUserId } = require('../utils/authUser');
 
 function shuffleArray(array) {
   const shuffled = [...array];
@@ -250,8 +251,13 @@ exports.getAttemptResult = asyncHandler(async (req, res) => {
 });
 
 exports.getMyAttempts = asyncHandler(async (req, res) => {
+  const userId = getDbUserId(req.user);
+  if (!userId) {
+    return res.json({ success: true, data: [] });
+  }
+
   const { testId } = req.query;
-  const filter = { user: req.user._id };
+  const filter = { user: userId };
   if (testId) filter.test = testId;
 
   const attempts = await TestAttempt.find(filter)
@@ -265,8 +271,13 @@ exports.getMyAttempts = asyncHandler(async (req, res) => {
 });
 
 exports.getIncompleteAttempts = asyncHandler(async (req, res) => {
+  const userId = getDbUserId(req.user);
+  if (!userId) {
+    return res.json({ success: true, data: [] });
+  }
+
   const allInProgress = await TestAttempt.find({
-    user: req.user._id,
+    user: userId,
     status: 'in_progress'
   })
     .populate('test', 'title duration totalMarks')
@@ -278,7 +289,7 @@ exports.getIncompleteAttempts = asyncHandler(async (req, res) => {
 
   // Check which tests user has already completed
   const completedTests = await TestAttempt.find({
-    user: req.user._id,
+    user: userId,
     status: { $in: ['completed', 'timed_out'] }
   }).select('test completedAt').sort('-completedAt');
 

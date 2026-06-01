@@ -6,8 +6,9 @@ import toast from 'react-hot-toast';
 import {
   Plus, Trash2, BookOpen, FileText, HelpCircle, Loader2,
   ChevronDown, ChevronRight, Save, X, Layers, ArrowLeft, AlertTriangle,
-  Upload, FileJson, CheckCircle2, Pencil
+  Upload, FileJson, CheckCircle2, Pencil, Shield, BarChart3, Users
 } from 'lucide-react';
+import AdminUsersTab from '../components/AdminUsersTab';
 
 function questionToEditForm(q) {
   const opt = (id) => q.options?.find((o) => o.id === id)?.text || '';
@@ -127,8 +128,15 @@ export default function Admin() {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [userCount, setUserCount] = useState(0);
 
   useEffect(() => { fetchChapters(); }, []);
+
+  useEffect(() => {
+    api.get('/admin/users')
+      .then(({ data }) => setUserCount(data.data?.length || 0))
+      .catch(() => {});
+  }, []);
 
   const fetchTopicQuestions = (topicId) => {
     if (!topicId) {
@@ -419,34 +427,83 @@ export default function Admin() {
     { id: 'chapters', label: 'Chapters', icon: Layers },
     { id: 'topics', label: 'Topics', icon: FileText },
     { id: 'questions', label: 'Questions', icon: HelpCircle },
+    { id: 'users', label: 'Users', icon: Users },
   ];
 
+  const stats = {
+    chapters: chapters.length,
+    topics: chapters.reduce((sum, ch) => sum + (ch.topics?.length || 0), 0),
+    questions: chapters.reduce(
+      (sum, ch) => sum + (ch.topics?.reduce((ts, t) => ts + (t.questionCount || 0), 0) || 0),
+      0
+    ),
+  };
+
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <Link to="/" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-indigo-600 mb-2 transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Back to Site
-          </Link>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Admin Panel</h1>
-          <p className="text-sm text-gray-500 mt-1">Add and manage syllabus, topics & questions</p>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <Link to="/" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-indigo-600 mb-5 transition-colors">
+        <ArrowLeft className="w-4 h-4" /> Back to Site
+      </Link>
+
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-indigo-800 text-white p-6 sm:p-8 mb-8">
+        <div className="absolute -top-16 -right-10 w-48 h-48 bg-white/10 rounded-full" />
+        <div className="absolute -bottom-20 -left-10 w-56 h-56 bg-indigo-500/20 rounded-full" />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold">Admin Panel</h1>
+                <p className="text-sm text-white/75 mt-0.5">Manage syllabus, questions, and users for MockMaster</p>
+              </div>
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-2 text-xs font-medium bg-white/10 backdrop-blur px-3 py-2 rounded-xl w-fit">
+            <BarChart3 className="w-3.5 h-3.5" />
+            Content management dashboard
+          </div>
         </div>
       </div>
 
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: 'Chapters', value: stats.chapters, icon: Layers, color: 'bg-indigo-50 text-indigo-600' },
+          { label: 'Topics', value: stats.topics, icon: FileText, color: 'bg-violet-50 text-violet-600' },
+          { label: 'Questions', value: stats.questions, icon: HelpCircle, color: 'bg-emerald-50 text-emerald-600' },
+          { label: 'Users', value: userCount, icon: Users, color: 'bg-sky-50 text-sky-600' },
+        ].map((item) => (
+          <div key={item.label} className="card p-4 sm:p-5">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${item.color}`}>
+                <item.icon className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{item.value}</p>
+                <p className="text-[11px] text-gray-400 font-medium">{item.label}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Tabs */}
-      <div className="flex gap-1 mb-8 bg-gray-100 p-1 rounded-xl w-fit">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-8 p-1.5 bg-gray-100/80 rounded-2xl">
         {tabs.map(tab => (
           <button
             key={tab.id}
+            type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-3 rounded-xl text-sm font-medium transition-all ${
               activeTab === tab.id
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-indigo-100'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'
             }`}
           >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
+            <tab.icon className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">{tab.label}</span>
+            <span className="sm:hidden text-xs">{tab.label}</span>
           </button>
         ))}
       </div>
@@ -454,7 +511,7 @@ export default function Admin() {
       {/* Chapters Tab */}
       {activeTab === 'chapters' && (
         <div className="space-y-6">
-          <form onSubmit={handleAddChapter} className="card p-6">
+          <form onSubmit={handleAddChapter} className="card p-6 sm:p-7 border-indigo-100/60 bg-gradient-to-br from-white to-indigo-50/20">
             <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Plus className="w-4 h-4 text-indigo-600" /> Add New Chapter (Syllabus)
             </h3>
@@ -486,7 +543,7 @@ export default function Admin() {
           ) : (
             <div className="space-y-2">
               {chapters.map((ch) => (
-                <div key={ch._id} className="card p-4">
+                <div key={ch._id} className="card p-4 sm:p-5 hover:border-indigo-200 hover:shadow-[0_8px_24px_rgba(0,0,0,0.04)] transition-all">
                   <div className="flex items-center justify-between">
                     <div
                       className="flex items-center gap-3 cursor-pointer flex-1"
@@ -543,7 +600,7 @@ export default function Admin() {
       {/* Topics Tab */}
       {activeTab === 'topics' && (
         <div className="space-y-6">
-          <form onSubmit={handleAddTopic} className="card p-6">
+          <form onSubmit={handleAddTopic} className="card p-6 sm:p-7 border-violet-100/60 bg-gradient-to-br from-white to-violet-50/20">
             <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Plus className="w-4 h-4 text-indigo-600" /> Add New Topic
             </h3>
@@ -588,8 +645,9 @@ export default function Admin() {
             </div>
           </form>
 
-          <div className="card p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Existing Topics</h3>
+          <div className="card p-6 sm:p-7">
+            <h3 className="font-semibold text-gray-900 mb-1">Existing Topics</h3>
+            <p className="text-sm text-gray-500 mb-5">Browse and manage topics grouped by chapter.</p>
             {chapters.map(ch => (
               ch.topics?.length > 0 && (
                 <div key={ch._id} className="mb-4">
@@ -634,8 +692,8 @@ export default function Admin() {
       {activeTab === 'questions' && (
         <div className="space-y-6">
           {/* Select Chapter & Topic */}
-          <div className="card p-6">
-            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="card p-6 sm:p-7 border-indigo-100/60 bg-gradient-to-br from-white to-indigo-50/20">
+            <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
               <HelpCircle className="w-4 h-4 text-indigo-600" /> Add Questions
             </h3>
             <p className="text-sm text-gray-500 mb-4">Select a chapter and topic, then add questions. Each question is saved instantly.</p>
@@ -996,6 +1054,10 @@ export default function Admin() {
             </div>
           )}
         </div>
+      )}
+
+      {activeTab === 'users' && (
+        <AdminUsersTab onCountChange={setUserCount} />
       )}
 
       {/* Delete Confirmation Modal */}

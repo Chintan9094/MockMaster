@@ -14,7 +14,11 @@ export default function Bookmarks() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   useEffect(() => {
-    fetchBookmarks().catch(() => toast.error('Failed to load bookmarks'));
+    fetchBookmarks().catch((err) => {
+      if (err?.response?.status !== 401) {
+        toast.error('Failed to load bookmarks');
+      }
+    });
   }, [fetchBookmarks]);
 
   const handleRemove = async (questionId) => {

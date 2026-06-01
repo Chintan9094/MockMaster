@@ -1,17 +1,28 @@
 const Bookmark = require('../models/Bookmark');
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
+const { getDbUserId } = require('../utils/authUser');
 
 exports.getBookmarks = asyncHandler(async (req, res) => {
-  const bookmarks = await Bookmark.find({ user: req.user._id }).sort('-createdAt');
+  const userId = getDbUserId(req.user);
+  if (!userId) {
+    return res.json({ success: true, data: [] });
+  }
+
+  const bookmarks = await Bookmark.find({ user: userId }).sort('-createdAt');
   res.json({ success: true, data: bookmarks });
 });
 
 exports.toggleBookmark = asyncHandler(async (req, res) => {
+  const userId = getDbUserId(req.user);
+  if (!userId) {
+    throw new AppError('Bookmarks are available for registered student accounts only', 400);
+  }
+
   const { questionId, questionText, options, correctAnswer, explanation, difficulty } = req.body;
   if (!questionId) throw new AppError('questionId is required', 400);
 
   const existing = await Bookmark.findOne({
-    user: req.user._id,
+    user: userId,
     questionId
   });
 
@@ -25,7 +36,7 @@ exports.toggleBookmark = asyncHandler(async (req, res) => {
   }
 
   const created = await Bookmark.create({
-    user: req.user._id,
+    user: userId,
     questionId,
     questionText,
     options,
@@ -41,12 +52,22 @@ exports.toggleBookmark = asyncHandler(async (req, res) => {
 });
 
 exports.removeBookmark = asyncHandler(async (req, res) => {
+  const userId = getDbUserId(req.user);
+  if (!userId) {
+    return res.json({ success: true, message: 'Bookmark removed' });
+  }
+
   const { questionId } = req.params;
-  await Bookmark.deleteOne({ user: req.user._id, questionId });
+  await Bookmark.deleteOne({ user: userId, questionId });
   res.json({ success: true, message: 'Bookmark removed' });
 });
 
 exports.clearBookmarks = asyncHandler(async (req, res) => {
-  await Bookmark.deleteMany({ user: req.user._id });
+  const userId = getDbUserId(req.user);
+  if (!userId) {
+    return res.json({ success: true, message: 'All bookmarks cleared' });
+  }
+
+  await Bookmark.deleteMany({ user: userId });
   res.json({ success: true, message: 'All bookmarks cleared' });
 });

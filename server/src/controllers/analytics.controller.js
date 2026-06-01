@@ -1,26 +1,54 @@
 const TestAttempt = require('../models/TestAttempt');
 const Topic = require('../models/Topic');
-const Chapter = require('../models/Chapter');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { getDbUserId, iterateTopicAnalysis } = require('../utils/authUser');
+
+const EMPTY_OVERALL = {
+  summary: {
+    totalTests: 0,
+    totalCorrect: 0,
+    totalIncorrect: 0,
+    totalQuestions: 0,
+    avgPercentage: 0,
+    accuracy: 0
+  },
+  recentAttempts: [],
+  progressOverTime: []
+};
+
+const EMPTY_TOPICS = {
+  topics: [],
+  weakTopics: [],
+  strongTopics: []
+};
+
+function getScore(attempt) {
+  return attempt?.score || {};
+}
 
 exports.getOverallAnalytics = asyncHandler(async (req, res) => {
+  const userId = getDbUserId(req.user);
+  if (!userId) {
+    return res.json({ success: true, data: EMPTY_OVERALL });
+  }
+
   const attempts = await TestAttempt.find({
-    user: req.user._id,
+    user: userId,
     status: { $in: ['completed', 'timed_out'] }
   }).populate('test', 'title topic chapter');
 
   const totalTests = attempts.length;
-  const totalCorrect = attempts.reduce((sum, a) => sum + a.score.correct, 0);
-  const totalIncorrect = attempts.reduce((sum, a) => sum + a.score.incorrect, 0);
-  const totalQuestions = attempts.reduce((sum, a) => sum + a.score.total, 0);
+  const totalCorrect = attempts.reduce((sum, a) => sum + (getScore(a).correct || 0), 0);
+  const totalIncorrect = attempts.reduce((sum, a) => sum + (getScore(a).incorrect || 0), 0);
+  const totalQuestions = attempts.reduce((sum, a) => sum + (getScore(a).total || 0), 0);
   const avgPercentage = totalTests > 0
-    ? Math.round(attempts.reduce((sum, a) => sum + a.score.percentage, 0) / totalTests)
+    ? Math.round(attempts.reduce((sum, a) => sum + (getScore(a).percentage || 0), 0) / totalTests)
     : 0;
 
-  const recentAttempts = attempts.slice(0, 10).map(a => ({
+  const recentAttempts = attempts.slice(0, 10).map((a) => ({
     id: a._id,
     testTitle: a.test?.title,
-    score: a.score,
+    score: getScore(a),
     completedAt: a.completedAt,
     status: a.status,
     tabSwitchCount: a.tabSwitchCount || 0
@@ -28,9 +56,9 @@ exports.getOverallAnalytics = asyncHandler(async (req, res) => {
 
   const progressOverTime = attempts
     .sort((a, b) => new Date(a.completedAt) - new Date(b.completedAt))
-    .map(a => ({
+    .map((a) => ({
       date: a.completedAt,
-      percentage: a.score.percentage
+      percentage: getScore(a).percentage || 0
     }));
 
   res.json({
@@ -51,31 +79,38 @@ exports.getOverallAnalytics = asyncHandler(async (req, res) => {
 });
 
 exports.getTopicWiseAnalytics = asyncHandler(async (req, res) => {
+  const userId = getDbUserId(req.user);
+  if (!userId) {
+    return res.json({ success: true, data: EMPTY_TOPICS });
+  }
+
   const attempts = await TestAttempt.find({
-    user: req.user._id,
+    user: userId,
     status: { $in: ['completed', 'timed_out'] }
   });
 
   const topicStats = {};
 
-  attempts.forEach(attempt => {
-    if (attempt.topicAnalysis) {
-      attempt.topicAnalysis.forEach((value, key) => {
-        if (!topicStats[key]) {
-          topicStats[key] = { correct: 0, incorrect: 0, unanswered: 0, total: 0 };
-        }
-        topicStats[key].correct += value.correct;
-        topicStats[key].incorrect += value.incorrect;
-        topicStats[key].unanswered += value.unanswered;
-        topicStats[key].total += value.total;
-      });
-    }
+  attempts.forEach((attempt) => {
+    iterateTopicAnalysis(attempt.topicAnalysis, (value, key) => {
+      if (!topicStats[key]) {
+        topicStats[key] = { correct: 0, incorrect: 0, unanswered: 0, total: 0 };
+      }
+      topicStats[key].correct += value.correct || 0;
+      topicStats[key].incorrect += value.incorrect || 0;
+      topicStats[key].unanswered += value.unanswered || 0;
+      topicStats[key].total += value.total || 0;
+    });
   });
 
   const topicIds = Object.keys(topicStats);
+  if (!topicIds.length) {
+    return res.json({ success: true, data: EMPTY_TOPICS });
+  }
+
   const topics = await Topic.find({ _id: { $in: topicIds } }).populate('chapter', 'title number');
 
-  const analysis = topics.map(topic => {
+  const analysis = topics.map((topic) => {
     const stats = topicStats[topic._id.toString()];
     return {
       topicId: topic._id,
@@ -89,22 +124,24 @@ exports.getTopicWiseAnalytics = asyncHandler(async (req, res) => {
 
   analysis.sort((a, b) => a.percentage - b.percentage);
 
-  const weakTopics = analysis.filter(a => a.percentage < 50);
-  const strongTopics = analysis.filter(a => a.percentage >= 75);
-
   res.json({
     success: true,
     data: {
       topics: analysis,
-      weakTopics,
-      strongTopics
+      weakTopics: analysis.filter((a) => a.percentage < 50),
+      strongTopics: analysis.filter((a) => a.percentage >= 75)
     }
   });
 });
 
 exports.getChapterWiseAnalytics = asyncHandler(async (req, res) => {
+  const userId = getDbUserId(req.user);
+  if (!userId) {
+    return res.json({ success: true, data: [] });
+  }
+
   const attempts = await TestAttempt.find({
-    user: req.user._id,
+    user: userId,
     status: { $in: ['completed', 'timed_out'] }
   }).populate({
     path: 'test',
@@ -114,9 +151,10 @@ exports.getChapterWiseAnalytics = asyncHandler(async (req, res) => {
 
   const chapterStats = {};
 
-  attempts.forEach(attempt => {
+  attempts.forEach((attempt) => {
     if (!attempt.test?.chapter) return;
     const chId = attempt.test.chapter._id.toString();
+    const score = getScore(attempt);
     if (!chapterStats[chId]) {
       chapterStats[chId] = {
         title: attempt.test.chapter.title,
@@ -127,11 +165,11 @@ exports.getChapterWiseAnalytics = asyncHandler(async (req, res) => {
       };
     }
     chapterStats[chId].attempts++;
-    chapterStats[chId].totalCorrect += attempt.score.correct;
-    chapterStats[chId].totalQuestions += attempt.score.total;
+    chapterStats[chId].totalCorrect += score.correct || 0;
+    chapterStats[chId].totalQuestions += score.total || 0;
   });
 
-  const chapterAnalysis = Object.values(chapterStats).map(ch => ({
+  const chapterAnalysis = Object.values(chapterStats).map((ch) => ({
     ...ch,
     percentage: ch.totalQuestions > 0 ? Math.round((ch.totalCorrect / ch.totalQuestions) * 100) : 0
   }));
