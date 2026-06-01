@@ -36,6 +36,7 @@ export const useAuthStore = create(
         });
         invalidatePageCache();
         hasHandledUnauthorized = false;
+        return data.data.user;
       },
 
       login: async ({ email, password }) => {
@@ -46,6 +47,7 @@ export const useAuthStore = create(
         });
         invalidatePageCache();
         hasHandledUnauthorized = false;
+        return data.data.user;
       },
 
       bootstrap: async () => {

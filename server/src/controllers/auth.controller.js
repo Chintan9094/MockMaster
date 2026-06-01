@@ -78,10 +78,10 @@ exports.login = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findOne({ email: normalizedEmail }).select('+password');
-  if (!user) throw new AppError('Invalid email or password', 401);
+  if (!user) throw new AppError('Email is not registered', 401);
 
   const isMatch = await user.comparePassword(password);
-  if (!isMatch) throw new AppError('Invalid email or password', 401);
+  if (!isMatch) throw new AppError('Password is incorrect', 401);
 
   const token = user.generateToken();
   res.json({

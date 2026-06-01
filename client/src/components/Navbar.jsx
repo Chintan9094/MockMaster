@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, LayoutDashboard, GraduationCap, Menu, X, Bookmark } from 'lucide-react';
+import { BookOpen, LayoutDashboard, GraduationCap, Menu, X, Bookmark, Shield } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 
@@ -18,6 +18,10 @@ export default function Navbar() {
   const token = useAuthStore((s) => s.token);
   const logout = useAuthStore((s) => s.logout);
   const isAuthed = Boolean(token);
+  const isAdmin = user?.role === 'admin';
+  const visibleLinks = isAdmin
+    ? [...navLinks, { to: '/admin', label: 'Admin Panel', icon: Shield }]
+    : navLinks;
 
   return (
     <motion.nav 
@@ -43,7 +47,7 @@ export default function Navbar() {
           </Link>
 
           <div className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => {
+            {visibleLinks.map((link) => {
               if (!isAuthed && (link.to === '/dashboard' || link.to === '/bookmarks')) return null;
               const isActive = location.pathname === link.to || 
                 (link.to !== '/' && location.pathname.startsWith(link.to));
@@ -115,7 +119,7 @@ export default function Navbar() {
               className="md:hidden overflow-hidden"
             >
               <div className="pb-4 pt-2 space-y-1">
-                {navLinks.map((link, i) => (
+                {visibleLinks.map((link, i) => (
                   (!isAuthed && (link.to === '/dashboard' || link.to === '/bookmarks')) ? null : (
                   <motion.div
                     key={link.to}

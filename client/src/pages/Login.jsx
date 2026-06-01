@@ -18,9 +18,10 @@ export default function Login() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await login(form);
+      const loggedInUser = await login(form);
       toast.success('Logged in successfully');
-      navigate(fromPath, { replace: true });
+      const targetPath = loggedInUser?.role === 'admin' ? '/admin' : fromPath;
+      navigate(targetPath, { replace: true });
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Login failed');
     } finally {
