@@ -1,10 +1,12 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { isTokenExpired } from '../lib/token';
 
 export default function RequireAuth({ children }) {
   const location = useLocation();
   const { token, bootstrapped } = useAuthStore();
+  const sessionExpired = token && isTokenExpired(token);
 
   if (!bootstrapped) {
     return (
@@ -15,7 +17,7 @@ export default function RequireAuth({ children }) {
     );
   }
 
-  if (!token) {
+  if (!token || sessionExpired) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 

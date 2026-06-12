@@ -47,11 +47,27 @@ function formatQuestionPayload(q) {
 }
 
 exports.addChapter = asyncHandler(async (req, res) => {
-  const { number, title } = req.body;
-  if (!number || !title) throw new AppError('Number and title are required', 400);
+  const { title } = req.body;
+  if (!title?.trim()) throw new AppError('Title is required', 400);
 
-  const chapter = await Chapter.create({ number, title, topics: [] });
+  const lastChapter = await Chapter.findOne().sort({ number: -1 }).select('number');
+  const number = (lastChapter?.number || 0) + 1;
+
+  const chapter = await Chapter.create({ number, title: title.trim(), topics: [] });
   res.status(201).json({ success: true, data: chapter });
+});
+
+exports.updateChapter = asyncHandler(async (req, res) => {
+  const chapter = await Chapter.findById(req.params.id);
+  if (!chapter) throw new AppError('Chapter not found', 404);
+
+  const { title } = req.body;
+  if (!title?.trim()) throw new AppError('Title is required', 400);
+
+  chapter.title = title.trim();
+  await chapter.save();
+
+  res.json({ success: true, data: chapter });
 });
 
 exports.addTopic = asyncHandler(async (req, res) => {
@@ -66,6 +82,25 @@ exports.addTopic = asyncHandler(async (req, res) => {
   await chapter.save();
 
   res.status(201).json({ success: true, data: topic });
+});
+
+exports.updateTopic = asyncHandler(async (req, res) => {
+  const topic = await Topic.findById(req.params.id);
+  if (!topic) throw new AppError('Topic not found', 404);
+
+  const { title, duration } = req.body;
+  if (title !== undefined) {
+    if (!title.trim()) throw new AppError('Title is required', 400);
+    topic.title = title.trim();
+  }
+  if (duration !== undefined) {
+    topic.duration = Math.max(1, parseInt(duration, 10) || 10);
+  }
+
+  await topic.save();
+  await syncTestForTopic(topic._id, topic.chapter, topic.title, topic.duration);
+
+  res.json({ success: true, data: topic });
 });
 
 exports.addQuestions = asyncHandler(async (req, res) => {
@@ -158,6 +193,37 @@ exports.deleteQuestion = asyncHandler(async (req, res) => {
   await syncTestForTopic(topic, chapter, topicDoc?.title, topicDoc?.duration);
 
   res.json({ success: true, message: 'Question deleted' });
+});
+
+exports.deleteQuestionsBulk = asyncHandler(async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !ids.length) {
+    throw new AppError('ids array is required', 400);
+  }
+
+  const questions = await Question.find({ _id: { $in: ids } });
+  if (!questions.length) throw new AppError('No questions found', 404);
+
+  const topicsToSync = new Map();
+  for (const question of questions) {
+    const key = question.topic.toString();
+    if (!topicsToSync.has(key)) {
+      topicsToSync.set(key, { topic: question.topic, chapter: question.chapter });
+    }
+  }
+
+  await Question.deleteMany({ _id: { $in: questions.map((q) => q._id) } });
+
+  for (const { topic, chapter } of topicsToSync.values()) {
+    const topicDoc = await Topic.findById(topic);
+    await syncTestForTopic(topic, chapter, topicDoc?.title, topicDoc?.duration);
+  }
+
+  res.json({
+    success: true,
+    message: `${questions.length} question(s) deleted`,
+    deletedCount: questions.length
+  });
 });
 
 exports.deleteChapter = asyncHandler(async (req, res) => {

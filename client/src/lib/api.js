@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getAuthToken } from './authStorage';
+import { isTokenExpired } from './token';
 
 /** API base URL. Empty → `/api` (Vite dev proxy). Production: `https://your-app.onrender.com/api` */
 function getApiBaseUrl() {
@@ -18,7 +19,16 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = getAuthToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (!token) return config;
+
+  if (isTokenExpired(token)) {
+    import('../store/authStore').then(({ useAuthStore }) => {
+      useAuthStore.getState().handleUnauthorized();
+    });
+    return Promise.reject(new axios.CanceledError('Session expired'));
+  }
+
+  config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 

@@ -104,12 +104,18 @@ export default function Admin() {
   const [expandedChapter, setExpandedChapter] = useState(null);
 
   // Delete confirmation state
-  const [deleteModal, setDeleteModal] = useState({ open: false, type: '', id: '', title: '', message: '' });
+  const [deleteModal, setDeleteModal] = useState({ open: false, type: '', id: '', ids: [], title: '', message: '' });
   const [deleting, setDeleting] = useState(false);
 
   // Forms
-  const [chapterForm, setChapterForm] = useState({ number: '', title: '' });
+  const [chapterForm, setChapterForm] = useState({ title: '' });
   const [topicForm, setTopicForm] = useState({ title: '', chapterId: '', duration: '10' });
+  const [chapterEditModal, setChapterEditModal] = useState({ open: false, chapter: null });
+  const [chapterEditTitle, setChapterEditTitle] = useState('');
+  const [topicEditModal, setTopicEditModal] = useState({ open: false, topic: null });
+  const [topicEditForm, setTopicEditForm] = useState({ title: '', duration: '10' });
+  const [savingChapterEdit, setSavingChapterEdit] = useState(false);
+  const [savingTopicEdit, setSavingTopicEdit] = useState(false);
   const [questionForm, setQuestionForm] = useState({
     topicId: '',
     chapterId: '',
@@ -124,6 +130,7 @@ export default function Admin() {
   });
 
   const [topicQuestions, setTopicQuestions] = useState([]);
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState([]);
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
@@ -141,6 +148,7 @@ export default function Admin() {
   const fetchTopicQuestions = (topicId) => {
     if (!topicId) {
       setTopicQuestions([]);
+      setSelectedQuestionIds([]);
       setEditingId(null);
       setEditForm(null);
       return;
@@ -155,6 +163,7 @@ export default function Admin() {
   useEffect(() => {
     setEditingId(null);
     setEditForm(null);
+    setSelectedQuestionIds([]);
     fetchTopicQuestions(questionForm.topicId);
   }, [questionForm.topicId]);
 
@@ -166,16 +175,80 @@ export default function Admin() {
       .finally(() => setLoading(false));
   };
 
+  const nextChapterNumber = chapters.length
+    ? Math.max(...chapters.map((c) => c.number || 0)) + 1
+    : 1;
+
   const handleAddChapter = async (e) => {
     e.preventDefault();
-    if (!chapterForm.number || !chapterForm.title) return toast.error('Fill all fields');
+    if (!chapterForm.title.trim()) return toast.error('Chapter title is required');
     try {
-      await api.post('/admin/chapters', { number: parseInt(chapterForm.number), title: chapterForm.title });
-      toast.success('Chapter added!');
-      setChapterForm({ number: '', title: '' });
+      await api.post('/admin/chapters', { title: chapterForm.title.trim() });
+      toast.success(`Chapter ${nextChapterNumber} added!`);
+      setChapterForm({ title: '' });
       fetchChapters();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to add chapter');
+    }
+  };
+
+  const openChapterEdit = (chapter) => {
+    setChapterEditModal({ open: true, chapter });
+    setChapterEditTitle(chapter.title || '');
+  };
+
+  const closeChapterEdit = () => {
+    setChapterEditModal({ open: false, chapter: null });
+    setChapterEditTitle('');
+  };
+
+  const handleUpdateChapter = async (e) => {
+    e.preventDefault();
+    if (!chapterEditTitle.trim()) return toast.error('Chapter title is required');
+    setSavingChapterEdit(true);
+    try {
+      await api.put(`/admin/chapters/${chapterEditModal.chapter._id}`, {
+        title: chapterEditTitle.trim()
+      });
+      toast.success('Chapter updated');
+      closeChapterEdit();
+      fetchChapters();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update chapter');
+    } finally {
+      setSavingChapterEdit(false);
+    }
+  };
+
+  const openTopicEdit = (topic) => {
+    setTopicEditModal({ open: true, topic });
+    setTopicEditForm({
+      title: topic.title || '',
+      duration: String(topic.duration || 10)
+    });
+  };
+
+  const closeTopicEdit = () => {
+    setTopicEditModal({ open: false, topic: null });
+    setTopicEditForm({ title: '', duration: '10' });
+  };
+
+  const handleUpdateTopic = async (e) => {
+    e.preventDefault();
+    if (!topicEditForm.title.trim()) return toast.error('Topic title is required');
+    setSavingTopicEdit(true);
+    try {
+      await api.put(`/admin/topics/${topicEditModal.topic._id}`, {
+        title: topicEditForm.title.trim(),
+        duration: parseInt(topicEditForm.duration, 10) || 10
+      });
+      toast.success('Topic updated');
+      closeTopicEdit();
+      fetchChapters();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update topic');
+    } finally {
+      setSavingTopicEdit(false);
     }
   };
 
@@ -364,8 +437,41 @@ export default function Admin() {
       open: true,
       type: 'question',
       id: q._id,
+      ids: [],
       title: 'Delete Question?',
       message: `Permanently delete this question?\n\n"${preview}"`
+    });
+  };
+
+  const toggleQuestionSelect = (questionId) => {
+    setSelectedQuestionIds((prev) =>
+      prev.includes(questionId)
+        ? prev.filter((id) => id !== questionId)
+        : [...prev, questionId]
+    );
+  };
+
+  const allQuestionsSelected = topicQuestions.length > 0
+    && selectedQuestionIds.length === topicQuestions.length;
+
+  const toggleSelectAllQuestions = () => {
+    if (allQuestionsSelected) {
+      setSelectedQuestionIds([]);
+    } else {
+      setSelectedQuestionIds(topicQuestions.map((q) => q._id));
+    }
+  };
+
+  const openBulkDeleteQuestions = () => {
+    const count = selectedQuestionIds.length;
+    if (!count) return;
+    setDeleteModal({
+      open: true,
+      type: 'questions-bulk',
+      id: '',
+      ids: [...selectedQuestionIds],
+      title: `Delete ${count} Question${count > 1 ? 's' : ''}?`,
+      message: `Permanently delete ${count} selected question(s)? This cannot be undone.`
     });
   };
 
@@ -409,6 +515,12 @@ export default function Admin() {
       } else if (deleteModal.type === 'question') {
         await api.delete(`/admin/questions/${deleteModal.id}`);
         toast.success('Question deleted');
+        setSelectedQuestionIds((prev) => prev.filter((id) => id !== deleteModal.id));
+        fetchTopicQuestions(questionForm.topicId);
+      } else if (deleteModal.type === 'questions-bulk') {
+        const { data } = await api.post('/admin/questions/bulk-delete', { ids: deleteModal.ids });
+        toast.success(data.message || 'Questions deleted');
+        setSelectedQuestionIds([]);
         fetchTopicQuestions(questionForm.topicId);
       } else {
         await api.delete(`/admin/topics/${deleteModal.id}`);
@@ -419,7 +531,7 @@ export default function Admin() {
       toast.error('Failed to delete');
     } finally {
       setDeleting(false);
-      setDeleteModal({ open: false, type: '', id: '', title: '', message: '' });
+      setDeleteModal({ open: false, type: '', id: '', ids: [], title: '', message: '' });
     }
   };
 
@@ -512,26 +624,22 @@ export default function Admin() {
       {activeTab === 'chapters' && (
         <div className="space-y-6">
           <form onSubmit={handleAddChapter} className="card p-6 sm:p-7 border-indigo-100/60 bg-gradient-to-br from-white to-indigo-50/20">
-            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
               <Plus className="w-4 h-4 text-indigo-600" /> Add New Chapter (Syllabus)
             </h3>
-            <div className="grid sm:grid-cols-[100px_1fr_auto] gap-3">
-              <input
-                type="number"
-                placeholder="No."
-                value={chapterForm.number}
-                onChange={(e) => setChapterForm({ ...chapterForm, number: e.target.value })}
-                className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-              />
+            <p className="text-sm text-gray-500 mb-4">
+              Next chapter will be numbered <span className="font-semibold text-indigo-600">#{nextChapterNumber}</span> automatically.
+            </p>
+            <div className="grid sm:grid-cols-[1fr_auto] gap-3">
               <input
                 type="text"
                 placeholder="Chapter title (e.g., Signal Processing)"
                 value={chapterForm.title}
-                onChange={(e) => setChapterForm({ ...chapterForm, title: e.target.value })}
+                onChange={(e) => setChapterForm({ title: e.target.value })}
                 className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
               />
               <button type="submit" className="btn-primary !py-2.5 !px-5 !text-[13px] !rounded-xl">
-                <Plus className="w-4 h-4" /> Add
+                <Plus className="w-4 h-4" /> Add Chapter #{nextChapterNumber}
               </button>
             </div>
           </form>
@@ -558,12 +666,22 @@ export default function Admin() {
                         <p className="text-[11px] text-gray-400">{ch.topics?.length || 0} topics</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => openDeleteChapter(ch)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openChapterEdit(ch)}
+                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Edit chapter"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => openDeleteChapter(ch)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete chapter"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   {expandedChapter === ch._id && ch.topics?.length > 0 && (
                     <div className="mt-3 ml-12 space-y-1.5">
@@ -577,12 +695,22 @@ export default function Admin() {
                               {t.questionCount ?? 0}
                             </span>
                           </div>
-                          <button
-                            onClick={() => openDeleteTopic(t)}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center gap-0.5">
+                            <button
+                              onClick={() => openTopicEdit(t)}
+                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                              title="Edit topic"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => openDeleteTopic(t)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                              title="Delete topic"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -651,13 +779,23 @@ export default function Admin() {
             {chapters.map(ch => (
               ch.topics?.length > 0 && (
                 <div key={ch._id} className="mb-4">
-                  <p className="text-xs font-semibold text-gray-400 mb-2 uppercase">{ch.number}. {ch.title}</p>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase">{ch.number}. {ch.title}</p>
+                    <button
+                      type="button"
+                      onClick={() => openChapterEdit(ch)}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+                    >
+                      <Pencil className="w-3 h-3" /> Edit chapter
+                    </button>
+                  </div>
                   <div className="space-y-1.5">
                     {ch.topics.map(t => (
                       <div key={t._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                         <div className="flex items-center gap-2 min-w-0">
                           <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
                           <span className="text-sm text-gray-700 truncate">{t.title}</span>
+                          <span className="shrink-0 text-[11px] text-gray-400">{t.duration || 10} min</span>
                           <span className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full ${
                             (t.questionCount ?? 0) === 0
                               ? 'bg-amber-50 text-amber-700'
@@ -666,11 +804,20 @@ export default function Admin() {
                             {t.questionCount ?? 0} {(t.questionCount ?? 0) === 1 ? 'question' : 'questions'}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <code className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded hidden sm:inline">{t._id}</code>
+                        <div className="flex items-center gap-1 shrink-0">
                           <button
+                            type="button"
+                            onClick={() => openTopicEdit(t)}
+                            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                            title="Edit topic"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => openDeleteTopic(t)}
                             className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                            title="Delete topic"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -727,22 +874,50 @@ export default function Admin() {
           {/* Existing questions */}
           {questionForm.topicId && (
             <div className="card p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-indigo-600" />
                   Questions in this topic
                   <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                     {questionsLoading ? '…' : topicQuestions.length}
                   </span>
+                  {selectedQuestionIds.length > 0 && (
+                    <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                      {selectedQuestionIds.length} selected
+                    </span>
+                  )}
                 </h3>
-                <button
-                  type="button"
-                  onClick={() => fetchTopicQuestions(questionForm.topicId)}
-                  disabled={questionsLoading}
-                  className="text-xs font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
-                >
-                  Refresh
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {topicQuestions.length > 0 && (
+                    <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 cursor-pointer hover:border-indigo-200 hover:bg-indigo-50/50 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={allQuestionsSelected}
+                        onChange={toggleSelectAllQuestions}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      Select all
+                    </label>
+                  )}
+                  {selectedQuestionIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={openBulkDeleteQuestions}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete selected ({selectedQuestionIds.length})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => fetchTopicQuestions(questionForm.topicId)}
+                    disabled={questionsLoading}
+                    className="text-xs font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50 px-2 py-1.5"
+                  >
+                    Refresh
+                  </button>
+                </div>
               </div>
 
               {questionsLoading ? (
@@ -753,8 +928,15 @@ export default function Admin() {
                 <p className="text-sm text-gray-400 text-center py-8">No questions yet. Add below or upload JSON.</p>
               ) : (
                 <div className="max-h-[420px] overflow-y-auto space-y-3 pr-1">
-                  {topicQuestions.map((q, idx) => (
-                    <div key={q._id} className="border border-gray-200 rounded-xl overflow-hidden">
+                  {topicQuestions.map((q, idx) => {
+                    const isSelected = selectedQuestionIds.includes(q._id);
+                    return (
+                    <div
+                      key={q._id}
+                      className={`border rounded-xl overflow-hidden transition-colors ${
+                        isSelected ? 'border-indigo-300 bg-indigo-50/30' : 'border-gray-200'
+                      }`}
+                    >
                       {editingId === q._id && editForm ? (
                         <form onSubmit={handleSaveEdit} className="p-4 bg-indigo-50/40 space-y-3">
                           <div className="flex items-center justify-between">
@@ -820,6 +1002,13 @@ export default function Admin() {
                       ) : (
                         <div className="p-4 bg-gray-50/50">
                           <div className="flex items-start justify-between gap-3">
+                            <label className="flex items-start gap-3 min-w-0 flex-1 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleQuestionSelect(q._id)}
+                                className="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
+                              />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="text-[10px] font-bold text-gray-400">Q{idx + 1}</span>
@@ -841,6 +1030,7 @@ export default function Admin() {
                                 ))}
                               </ul>
                             </div>
+                            </label>
                             <div className="flex items-center gap-1 shrink-0">
                               <button
                                 type="button"
@@ -863,7 +1053,8 @@ export default function Admin() {
                         </div>
                       )}
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               )}
             </div>
@@ -1060,10 +1251,130 @@ export default function Admin() {
         <AdminUsersTab onCountChange={setUserCount} />
       )}
 
+      {/* Edit Chapter Modal */}
+      <AnimatePresence>
+        {chapterEditModal.open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={closeChapterEdit}
+          >
+            <motion.form
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              onSubmit={handleUpdateChapter}
+              className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 mb-5">
+                <div>
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3">
+                    <Pencil className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">Edit Chapter</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Chapter {chapterEditModal.chapter?.number}
+                  </p>
+                </div>
+                <button type="button" onClick={closeChapterEdit} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Chapter title</label>
+              <input
+                type="text"
+                required
+                value={chapterEditTitle}
+                onChange={(e) => setChapterEditTitle(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none mb-5"
+              />
+              <div className="flex gap-3">
+                <button type="button" onClick={closeChapterEdit} disabled={savingChapterEdit} className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-semibold text-sm rounded-xl hover:bg-gray-200 transition-colors">
+                  Cancel
+                </button>
+                <button type="submit" disabled={savingChapterEdit} className="flex-1 btn-primary !py-3 !rounded-xl flex items-center justify-center gap-2">
+                  {savingChapterEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {savingChapterEdit ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Topic Modal */}
+      <AnimatePresence>
+        {topicEditModal.open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={closeTopicEdit}
+          >
+            <motion.form
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              onSubmit={handleUpdateTopic}
+              className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 mb-5">
+                <div>
+                  <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center mb-3">
+                    <Pencil className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">Edit Topic</h3>
+                  <p className="text-sm text-gray-500 mt-1 truncate">{topicEditModal.topic?.title}</p>
+                </div>
+                <button type="button" onClick={closeTopicEdit} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="space-y-4 mb-5">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Topic title</label>
+                  <input
+                    type="text"
+                    required
+                    value={topicEditForm.title}
+                    onChange={(e) => setTopicEditForm((p) => ({ ...p, title: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Timer (minutes)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={topicEditForm.duration}
+                    onChange={(e) => setTopicEditForm((p) => ({ ...p, duration: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={closeTopicEdit} disabled={savingTopicEdit} className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-semibold text-sm rounded-xl hover:bg-gray-200 transition-colors">
+                  Cancel
+                </button>
+                <button type="submit" disabled={savingTopicEdit} className="flex-1 btn-primary !py-3 !rounded-xl flex items-center justify-center gap-2">
+                  {savingTopicEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {savingTopicEdit ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Delete Confirmation Modal */}
       <ConfirmModal
         open={deleteModal.open}
-        onClose={() => setDeleteModal({ open: false, type: '', id: '', title: '', message: '' })}
+        onClose={() => setDeleteModal({ open: false, type: '', id: '', ids: [], title: '', message: '' })}
         onConfirm={handleConfirmDelete}
         title={deleteModal.title}
         message={deleteModal.message}

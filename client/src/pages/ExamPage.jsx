@@ -175,8 +175,10 @@ export default function ExamPage() {
       const { data } = await api.post(`/attempts/start/${testId}`);
       initExam(data.data, data.data.questionOrder);
       if (data.resumed) toast.success('Resumed your previous attempt');
-    } catch {
-      toast.error('Failed to start test');
+    } catch (err) {
+      if (err?.code === 'ERR_CANCELED') return;
+      const message = err?.response?.data?.message || 'Failed to start test';
+      toast.error(message);
       navigate('/chapters');
     } finally {
       setLoading(false);

@@ -6,15 +6,27 @@ function normalizeEmail(email = '') {
   return String(email).trim().toLowerCase();
 }
 
-function signAdminToken() {
-  return jwt.sign(
-    {
-      isAdmin: true,
-      adminEmail: normalizeEmail(process.env.ADMIN_EMAIL)
-    },
-    process.env.JWT_SECRET || 'fallback-secret',
-    { expiresIn: process.env.JWT_EXPIRE || '7d' }
-  );
+async function getOrCreateEnvAdminUser() {
+  const adminEmail = normalizeEmail(process.env.ADMIN_EMAIL);
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  let user = await User.findOne({ email: adminEmail }).select('+password');
+  if (!user) {
+    user = await User.create({
+      name: 'Admin',
+      email: adminEmail,
+      password: adminPassword,
+      role: 'admin'
+    });
+    return user;
+  }
+
+  if (user.role !== 'admin') {
+    user.role = 'admin';
+    await user.save();
+  }
+
+  return user;
 }
 
 function authResponse(user, token) {
@@ -62,18 +74,11 @@ exports.login = asyncHandler(async (req, res) => {
   const adminPassword = process.env.ADMIN_PASSWORD;
 
   if (adminEmail && adminPassword && normalizedEmail === adminEmail && password === adminPassword) {
-    const token = signAdminToken();
+    const user = await getOrCreateEnvAdminUser();
+    const token = user.generateToken();
     return res.json({
       success: true,
-      data: {
-        token,
-        user: {
-          id: 'env-admin',
-          name: 'Admin',
-          email: adminEmail,
-          role: 'admin'
-        }
-      }
+      data: authResponse(user, token)
     });
   }
 

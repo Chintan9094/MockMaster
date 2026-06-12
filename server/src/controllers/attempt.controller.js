@@ -4,6 +4,17 @@ const Question = require('../models/Question');
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
 const { getDbUserId } = require('../utils/authUser');
 
+function requireDbUserId(req) {
+  const userId = getDbUserId(req.user);
+  if (!userId) {
+    throw new AppError(
+      'This account cannot take tests. Please login with a student account.',
+      403
+    );
+  }
+  return userId;
+}
+
 function shuffleArray(array) {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -15,13 +26,14 @@ function shuffleArray(array) {
 
 exports.startTest = asyncHandler(async (req, res) => {
   const { testId } = req.params;
+  const userId = requireDbUserId(req);
   const test = await Test.findById(testId).populate('questions');
 
   if (!test) throw new AppError('Test not found', 404);
 
   // Find ALL in_progress attempts for this user+test
   const existingAttempts = await TestAttempt.find({
-    user: req.user._id,
+    user: userId,
     test: testId,
     status: 'in_progress'
   }).sort('-createdAt');
@@ -81,7 +93,7 @@ exports.startTest = asyncHandler(async (req, res) => {
   }));
 
   const attempt = await TestAttempt.create({
-    user: req.user._id,
+    user: userId,
     test: testId,
     answers,
     questionOrder,
@@ -104,11 +116,12 @@ exports.startTest = asyncHandler(async (req, res) => {
 
 exports.saveAnswer = asyncHandler(async (req, res) => {
   const { attemptId } = req.params;
+  const userId = requireDbUserId(req);
   const { questionIndex, selectedAnswer, markedForReview, timeTaken } = req.body;
 
   const attempt = await TestAttempt.findOne({
     _id: attemptId,
-    user: req.user._id,
+    user: userId,
     status: 'in_progress'
   });
 
@@ -133,11 +146,12 @@ exports.saveAnswer = asyncHandler(async (req, res) => {
 
 exports.updateProgress = asyncHandler(async (req, res) => {
   const { attemptId } = req.params;
+  const userId = requireDbUserId(req);
   const { currentQuestionIndex, timeRemaining, tabSwitchCount } = req.body;
 
   const attempt = await TestAttempt.findOne({
     _id: attemptId,
-    user: req.user._id,
+    user: userId,
     status: 'in_progress'
   });
 
@@ -154,11 +168,12 @@ exports.updateProgress = asyncHandler(async (req, res) => {
 
 exports.submitTest = asyncHandler(async (req, res) => {
   const { attemptId } = req.params;
+  const userId = requireDbUserId(req);
   const { timedOut } = req.body;
 
   const attempt = await TestAttempt.findOne({
     _id: attemptId,
-    user: req.user._id,
+    user: userId,
     status: 'in_progress'
   }).populate({
     path: 'questionOrder',
@@ -228,10 +243,11 @@ exports.submitTest = asyncHandler(async (req, res) => {
 
 exports.getAttemptResult = asyncHandler(async (req, res) => {
   const { attemptId } = req.params;
+  const userId = requireDbUserId(req);
 
   const attempt = await TestAttempt.findOne({
     _id: attemptId,
-    user: req.user._id
+    user: userId
   })
     .populate({
       path: 'questionOrder',
@@ -334,9 +350,10 @@ exports.getIncompleteAttempts = asyncHandler(async (req, res) => {
 
 exports.abandonAttempt = asyncHandler(async (req, res) => {
   const { attemptId } = req.params;
+  const userId = requireDbUserId(req);
   const attempt = await TestAttempt.findOne({
     _id: attemptId,
-    user: req.user._id,
+    user: userId,
     status: 'in_progress'
   });
 
@@ -350,8 +367,9 @@ exports.abandonAttempt = asyncHandler(async (req, res) => {
 });
 
 exports.abandonAllIncomplete = asyncHandler(async (req, res) => {
+  const userId = requireDbUserId(req);
   await TestAttempt.updateMany(
-    { user: req.user._id, status: 'in_progress' },
+    { user: userId, status: 'in_progress' },
     { status: 'abandoned', completedAt: new Date() }
   );
 
